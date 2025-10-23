@@ -1,0 +1,70 @@
+{
+  "name": "trade-coin-electron",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/main.cjs",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
+    "dev:frontend": "cd ../frontend && npm run dev",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "build": "npm run build:frontend && npm run build:electron",
+    "build:frontend": "cd ../frontend && npm run build",
+    "build:electron": "electron-builder",
+    "dist": "npm run build",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^38.4.0",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^9.0.1"
+  },
+  "build": {
+    "appId": "com.tradecoin.app",
+    "productName": "Trade Coin",
+    "icon": "../assets/icon.png",
+    "title": "Trade Coin",
+    "description": "A cryptocurrency trading desktop application",
+    "version": "0.0.1",
+    "author": "Trade Coin",
+    "copyright": "Copyright 2025 Trade Coin",
+    "homepage": "https://tradecoin.com",
+    "keywords": ["cryptocurrency", "trading", "desktop", "app"],
+    "license": "MIT",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "../frontend/dist/**/*",
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  }
+}

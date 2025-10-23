@@ -1,0 +1,391 @@
+/* PLEASE NOTE: THESE TAILWIND IMPORTS SHOULD NEVER BE DELETED */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+/* DO NOT DELETE THESE TAILWIND IMPORTS, OTHERWISE THE STYLING WILL NOT RENDER AT ALL */
+
+/* Hide main page scrollbar and horizontal scroll */
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
+}
+
+/* Allow vertical scroll only for specific containers */
+.container-scroll, .table-modern, .order-history-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Modern scrollbar styles - Only for specific containers */
+.container-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.container-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 5px;
+  border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.container-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  border-radius: 5px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  transition: all 0.2s ease;
+}
+
+.container-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(145deg, #2563eb, #1e40af);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.container-scroll::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+/* Firefox scrollbar - Only for containers */
+.container-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #3b82f6 rgba(15, 23, 42, 0.8);
+}
+
+/* Enhanced table scrollbar - Always visible */
+.table-modern::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.table-modern::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 6px;
+  border: 1px solid rgba(75, 85, 99, 0.4);
+}
+
+.table-modern::-webkit-scrollbar-thumb {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  border-radius: 6px;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  min-height: 20px;
+}
+
+.table-modern::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(145deg, #2563eb, #1e40af);
+  border: 1px solid rgba(59, 130, 246, 0.6);
+}
+
+.table-modern::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+/* Force scrollbar to always show */
+.table-modern {
+  scrollbar-width: auto !important;
+}
+
+.table-modern::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* Order History List Scrollbar */
+.order-history-scroll {
+  scrollbar-width: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.order-history-scroll::-webkit-scrollbar {
+  width: 14px !important;
+  height: 14px !important;
+  -webkit-appearance: none !important;
+}
+
+.order-history-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border-radius: 7px !important;
+  border: 2px solid rgba(75, 85, 99, 0.5) !important;
+  margin: 4px !important;
+}
+
+.order-history-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8) !important;
+  border-radius: 7px !important;
+  border: 2px solid rgba(59, 130, 246, 0.6) !important;
+  min-height: 30px !important;
+  transition: all 0.3s ease !important;
+}
+
+.order-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(145deg, #2563eb, #1e40af) !important;
+  border: 2px solid rgba(59, 130, 246, 0.8) !important;
+  transform: scale(1.05) !important;
+}
+
+.order-history-scroll::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Firefox specific */
+.order-history-scroll {
+  scrollbar-color: #3b82f6 rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(75, 85, 99, 0.2);
+}
+
+.glass-card {
+  background: rgba(31, 41, 55, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+/* Modern gradients */
+.gradient-bg {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+}
+
+.gradient-card {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+}
+
+/* Enhanced buttons */
+.btn-modern {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  border: none;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-modern:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+.btn-success {
+  background: linear-gradient(145deg, #10b981, #059669);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-success:hover {
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(145deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+}
+
+/* Table enhancements */
+.table-modern {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(75, 85, 99, 0.2);
+}
+
+.table-row {
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.1);
+}
+
+.table-row:hover {
+  background: rgba(59, 130, 246, 0.05);
+  transform: translateX(2px);
+}
+
+/* Status badges - Medium size */
+.badge-spot {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  color: white;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.badge-futures {
+  background: linear-gradient(145deg, #8b5cf6, #7c3aed);
+  color: white;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.badge-buy {
+  background: linear-gradient(145deg, #10b981, #059669);
+  color: white;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.badge-sell {
+  background: linear-gradient(145deg, #ef4444, #dc2626);
+  color: white;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* Profit/Loss indicators */
+.profit {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.loss {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.neutral {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* Modern animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Enhanced text */
+.text-primary {
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.text-secondary {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.text-muted {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* Autocomplete dropdown scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Firefox autocomplete scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #334155;
+}
+
+/* Modern Leverage Slider */
+.slider-modern {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 4px;
+}
+
+.slider-modern::-webkit-slider-track {
+  background: linear-gradient(to right, #64748b, #94a3b8);
+  height: 6px;
+  border-radius: 3px;
+  border: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.slider-modern::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  height: 24px;
+  width: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid #1e293b;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transition: all 0.2s ease;
+}
+
+.slider-modern::-webkit-slider-thumb:hover {
+  background: linear-gradient(145deg, #2563eb, #1e40af);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6);
+  transform: scale(1.1);
+}
+
+.slider-modern::-moz-range-track {
+  background: linear-gradient(to right, #64748b, #94a3b8);
+  height: 6px;
+  border-radius: 3px;
+  border: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.slider-modern::-moz-range-thumb {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  height: 24px;
+  width: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid #1e293b;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transition: all 0.2s ease;
+}
+
+.slider-modern::-moz-range-thumb:hover {
+  background: linear-gradient(145deg, #2563eb, #1e40af);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6);
+  transform: scale(1.1);
+}

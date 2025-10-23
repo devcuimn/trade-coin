@@ -1,0 +1,124 @@
+{
+  "coins": [
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "price": 45000,
+      "icon": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png"
+    },
+    {
+      "symbol": "ETH", 
+      "name": "Ethereum",
+      "price": 2500,
+      "icon": "https://assets.coingecko.com/coins/images/279/large/ethereum.png"
+    },
+    {
+      "symbol": "BNB",
+      "name": "Binance Coin", 
+      "price": 320,
+      "icon": "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png"
+    },
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "price": 95,
+      "icon": "https://assets.coingecko.com/coins/images/4128/large/solana.png"
+    },
+    {
+      "symbol": "ADA",
+      "name": "Cardano",
+      "price": 0.45,
+      "icon": "https://assets.coingecko.com/coins/images/975/large/cardano.png"
+    },
+    {
+      "symbol": "XRP",
+      "name": "Ripple",
+      "price": 0.60,
+      "icon": "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png"
+    },
+    {
+      "symbol": "DOT",
+      "name": "Polkadot",
+      "price": 7.50,
+      "icon": "https://assets.coingecko.com/coins/images/12171/large/polkadot.png"
+    },
+    {
+      "symbol": "LTC",
+      "name": "Litecoin",
+      "price": 70,
+      "icon": "https://assets.coingecko.com/coins/images/2/large/litecoin.png"
+    },
+    {
+      "symbol": "LINK",
+      "name": "Chainlink",
+      "price": 15,
+      "icon": "https://assets.coingecko.com/coins/images/877/large/chainlink-new-logo.png"
+    },
+    {
+      "symbol": "BCH",
+      "name": "Bitcoin Cash",
+      "price": 280,
+      "icon": "https://assets.coingecko.com/coins/images/780/large/bitcoin-cash.png"
+    },
+    {
+      "symbol": "ETC",
+      "name": "Ethereum Classic",
+      "price": 25,
+      "icon": "https://assets.coingecko.com/coins/images/453/large/ethereum-classic-logo.png"
+    },
+    {
+      "symbol": "XLM",
+      "name": "Stellar",
+      "price": 0.12,
+      "icon": "https://assets.coingecko.com/coins/images/100/large/Stellar_symbol_black_RGB.png"
+    },
+    {
+      "symbol": "VET",
+      "name": "VeChain",
+      "price": 0.025,
+      "icon": "https://assets.coingecko.com/coins/images/1164/large/VeChain-Logo-768x768.png"
+    },
+    {
+      "symbol": "TRX",
+      "name": "Tron",
+      "price": 0.08,
+      "icon": "https://assets.coingecko.com/coins/images/1094/large/tron-logo.png"
+    },
+    {
+      "symbol": "EOS",
+      "name": "EOS",
+      "price": 0.80,
+      "icon": "https://assets.coingecko.com/coins/images/738/large/eos-eos-logo.png"
+    },
+    {
+      "symbol": "FIL",
+      "name": "Filecoin",
+      "price": 5.20,
+      "icon": "https://assets.coingecko.com/coins/images/12817/large/filecoin.png"
+    },
+    {
+      "symbol": "XTZ",
+      "name": "Tezos",
+      "price": 0.90,
+      "icon": "https://assets.coingecko.com/coins/images/976/large/Tezos-logo.png"
+    },
+    {
+      "symbol": "NEO",
+      "name": "Neo",
+      "price": 10,
+      "icon": "https://assets.coingecko.com/coins/images/480/large/NEO_512_512.png"
+    },
+    {
+      "symbol": "ATOM",
+      "name": "Cosmos",
+      "price": 9.00,
+      "icon": "https://assets.coingecko.com/coins/images/1481/large/cosmos_hub.png"
+    },
+    {
+      "symbol": "UNI",
+      "name": "Uniswap",
+      "price": 6.00,
+      "icon": "https://assets.coingecko.com/coins/images/12504/large/uniswap-uni.png"
+    }
+  ]
+}

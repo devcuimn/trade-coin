@@ -1,0 +1,13 @@
+{
+  "name": "trade-coin",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "cd electron && yarn dev",
+    "build": "cd electron && yarn build",
+    "install:all": "yarn install && cd frontend && yarn install && cd ../electron && yarn install",
+    "clean": "rm -rf node_modules frontend/node_modules electron/node_modules frontend/dist electron/release"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
