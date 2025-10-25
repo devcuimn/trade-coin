@@ -4,6 +4,7 @@ const fs = require('fs');
 const DatabaseService = require('./database.cjs');
 const BinanceSyncService = require('./BinanceSyncService.cjs');
 const CoinMarketCapService = require('./CoinMarketCapService.cjs');
+const PriceUpdateService = require('./PriceUpdateService.cjs');
 const isDev = process.env.NODE_ENV === 'development';
 
 // Keep a global reference of the window object
@@ -11,6 +12,7 @@ let mainWindow;
 let databaseService;
 let binanceSyncService;
 let coinMarketCapService;
+let priceUpdateService;
 
 function createWindow() {
   // Create the browser window
@@ -259,7 +261,15 @@ app.whenReady().then(async () => {
     console.error('Failed to initialize database:', error);
   }
 
+  // Create window first
   createWindow();
+
+  // Initialize Price Update Service after window is created
+  if (mainWindow) {
+    priceUpdateService = new PriceUpdateService(mainWindow, databaseService);
+    priceUpdateService.start();
+    console.log('PriceUpdateService started - updating prices every 2 seconds');
+  }
 
   // macOS specific: create window when dock icon is clicked
   app.on('activate', () => {

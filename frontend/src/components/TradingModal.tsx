@@ -101,8 +101,24 @@ export function TradingModal({
   }, [coinSearchTerm, coins]);
 
   const formatAmount = (amount: number) => {
-    // Display exact amount without rounding
-    return amount.toString();
+    // Format with thousands separator and handle decimal places
+    if (isNaN(amount) || amount === 0) return '0';
+    
+    // Format with thousands separators
+    const parts = amount.toString().split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
+    // Handle decimal places - show up to 8 decimal places for crypto
+    if (parts[1]) {
+      // Remove trailing zeros
+      parts[1] = parts[1].replace(/0+$/, '');
+      if (parts[1].length > 8) {
+        parts[1] = parts[1].substring(0, 8);
+      }
+      return parts[1] ? parts.join('.') : parts[0];
+    }
+    
+    return parts[0];
   };
 
   const handleCoinSelect = (coin: {symbol: string, name: string, price: number, icon: string}) => {
@@ -136,8 +152,17 @@ export function TradingModal({
     const priceNum = parseFloat(currentPrice.replace(/[^0-9.]/g, '')) || 0;
     const totalNum = parseFloat(currentTotal.replace(/[^0-9.]/g, '')) || 0;
     if (priceNum === 0) return '0';
-    const amount = totalNum / priceNum;
-    return formatAmount(amount);
+    
+    // For Futures: amount = (total * leverage) / price
+    // For Spot: amount = total / price
+    if (currentTradingMode === 'futures' && currentLeverage) {
+      const leverageNum = parseFloat(currentLeverage) || 1;
+      const amount = (totalNum * leverageNum) / priceNum;
+      return formatAmount(amount);
+    } else {
+      const amount = totalNum / priceNum;
+      return formatAmount(amount);
+    }
   };
 
   if (!isOpen) return null;
@@ -487,7 +512,16 @@ export function TradingModal({
             // Remove formatting for calculation
             const priceNum = parseFloat(priceValue.replace(/[^0-9.]/g, ''));
             const totalNum = parseFloat(totalValue.replace(/[^0-9.]/g, ''));
-            const amountNum = parseFloat(calculateAmount());
+            
+            // Calculate amount based on trading mode
+            let amountNum: number;
+            if (currentTradingMode === 'futures' && currentLeverage) {
+              const leverageNum = parseFloat(currentLeverage) || 1;
+              amountNum = (totalNum * leverageNum) / priceNum;
+            } else {
+              amountNum = totalNum / priceNum;
+            }
+            
             const leverageNum = currentTradingMode === 'futures' ? parseFloat(currentLeverage) : undefined;
             
             if (!priceNum || !totalNum || amountNum <= 0) {

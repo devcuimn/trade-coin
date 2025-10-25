@@ -21,6 +21,7 @@ interface OrderListProps {
   calculatePnL: (order: Order) => number;
   formatAmount: (amount: number, coinSymbol: string) => string;
   getCoinIcon: (coinSymbol: string) => string;
+  getPriceChangeColor: (coinSymbol: string) => string;
 }
 
 export function OrderList({ 
@@ -29,7 +30,8 @@ export function OrderList({
   getCurrentPrice, 
   calculatePnL, 
   formatAmount, 
-  getCoinIcon 
+  getCoinIcon,
+  getPriceChangeColor
 }: OrderListProps) {
   return (
     <div>
@@ -123,12 +125,9 @@ export function OrderList({
                       </div>
                     </td>
                     <td className="py-2 px-2">
-                      <div className="flex items-center space-x-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-                        <span className="text-xs font-medium text-white">
-                          ${currentPrice.toString()}
-                        </span>
-                      </div>
+                      <span className={`text-xs font-medium ${getPriceChangeColor(order.coin)}`}>
+                        ${currentPrice.toString()}
+                      </span>
                     </td>
                     <td className="py-2 px-2">
                       <span className="text-xs font-medium text-slate-300">

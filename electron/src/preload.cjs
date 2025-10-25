@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('menu-about', callback);
   },
 
+  // Price update event listener
+  onPriceUpdate: (callback) => {
+    ipcRenderer.on('price-update', callback);
+  },
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

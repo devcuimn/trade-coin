@@ -173,7 +173,6 @@ class DatabaseService {
           console.error('Error updating coin price:', err);
           reject(err);
         } else {
-          console.log(`Coin price updated: ${symbol} -> ${price}`);
           resolve({ changes: this.changes });
         }
       });

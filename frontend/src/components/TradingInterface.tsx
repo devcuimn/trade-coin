@@ -29,18 +29,21 @@ declare global {
       getAllOrders: () => Promise<{success: boolean, data?: Order[], error?: string}>;
       deleteOrder: (orderId: string) => Promise<{success: boolean, data?: any, error?: string}>;
       clearMatchedOrders: () => Promise<{success: boolean, data?: any, error?: string}>;
+      clearAllOrders: () => Promise<{success: boolean, data?: any, error?: string}>;
       getAllCoins: () => Promise<{success: boolean, data?: {symbol: string, name: string, price: number, icon: string}[], error?: string}>;
       saveCoin: (coin: {symbol: string, name: string, price: number, icon: string}) => Promise<{success: boolean, data?: any, error?: string}>;
       updateCoinPrice: (symbol: string, price: number) => Promise<{success: boolean, data?: any, error?: string}>;
       updateAllCoinPrices: (pricesData: Record<string, number>) => Promise<{success: boolean, data?: any, error?: string}>;
       manualSyncCoins: () => Promise<{success: boolean, message?: string, error?: string}>;
       getSyncStatus: () => Promise<{success: boolean, data?: {isRunning: boolean, nextSync: Date | null}, error?: string}>;
+      onPriceUpdate: (callback: (event: any, prices: Record<string, number>) => void) => void;
+      removeAllListeners: (channel: string) => void;
     };
   }
 }
 export function TradingInterface() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [coins, setCoins] = useState<{symbol: string, name: string, price: number, icon: string}[]>([]);
+  const [coins, setCoins] = useState<{symbol: string, name: string, price: number, icon: string, priceChange?: 'up' | 'down'}[]>([]);
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [isFuturesModalOpen, setIsFuturesModalOpen] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
@@ -69,6 +72,50 @@ export function TradingInterface() {
       }
     };
     loadCoins();
+  }, []);
+
+  // Listen for real-time price updates (continuous, no cleanup)
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onPriceUpdate) {
+      const handlePriceUpdate = (event: any, prices: Record<string, number>) => { // prices is an object, not a map 
+        // Update coin prices in state with price change indicator
+        setCoins(prevCoins => 
+          prevCoins.map(coin => {
+            const newPrice = prices[coin.symbol];
+            if (newPrice !== undefined) {
+              // Keep the current priceChange status
+              let priceChange = coin.priceChange;
+              
+              if (newPrice > coin.price) {
+                priceChange = 'up'; // Giá tăng = màu xanh
+              } else if (newPrice < coin.price) {
+                priceChange = 'down'; // Giá giảm = màu đỏ
+              }
+              // If price is same, keep previous color (don't change priceChange)
+              
+              // Reset color after 2 seconds
+              // if (priceChange !== coin.priceChange && priceChange !== 'same') {
+              //   setTimeout(() => {
+              //     setCoins(prevCoins => 
+              //       prevCoins.map(c => 
+              //         c.symbol === coin.symbol 
+              //           ? { ...c, priceChange: 'same' as const }
+              //           : c
+              //       )
+              //     );
+              //   }, 2000);
+              // }
+              
+              return { ...coin, price: newPrice, priceChange };
+            }
+            return coin;
+          })
+        );
+      };
+
+      // Register listener (keep running continuously)
+      window.electronAPI.onPriceUpdate(handlePriceUpdate);
+    }
   }, []);
 
   // Load orders from database
@@ -108,9 +155,29 @@ export function TradingInterface() {
   };
 
   const formatAmount = (amount: number, coinSymbol: string) => {
+    // Format with thousands separator and handle decimal places
+    if (isNaN(amount) || amount === 0) return '0';
+    
+    // Determine decimal places based on coin type
     const decimals = coinSymbol === 'BTC' ? 4 : 2;
     const formatted = amount.toFixed(decimals);
-    return parseFloat(formatted).toString();
+    const numValue = parseFloat(formatted);
+    
+    // Format with thousands separators
+    const parts = numValue.toString().split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
+    // Handle decimal places
+    if (parts[1]) {
+      // Remove trailing zeros
+      parts[1] = parts[1].replace(/0+$/, '');
+      if (parts[1].length > decimals) {
+        parts[1] = parts[1].substring(0, decimals);
+      }
+      return parts[1] ? parts.join('.') : parts[0];
+    }
+    
+    return parts[0];
   };
 
   // Get coin icon
@@ -122,6 +189,16 @@ export function TradingInterface() {
   const getCurrentPrice = (coinSymbol: string) => {
     const coin = coins.find(c => c.symbol === coinSymbol);
     return coin ? coin.price : 0;
+  };
+
+  const getPriceChangeColor = (coinSymbol: string) => {
+    const coin = coins.find(c => c.symbol === coinSymbol);
+    if (coin?.priceChange === 'up') {
+      return '!text-green-500 font-bold'; // Giá tăng = xanh đậm + bold
+    } else if (coin?.priceChange === 'down') {
+      return '!text-red-500 font-bold'; // Giá giảm = đỏ đậm + bold
+    }
+    return 'text-white'; // Giữ nguyên màu trước đó
   };
 
   const calculatePnL = (order: Order) => {
@@ -310,6 +387,7 @@ export function TradingInterface() {
             calculatePnL={calculatePnL}
             formatAmount={formatAmount}
             getCoinIcon={getCoinIcon}
+            getPriceChangeColor={getPriceChangeColor}
           />
         </div>
       </div>
