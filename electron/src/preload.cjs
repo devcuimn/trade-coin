@@ -36,6 +36,53 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   saveCryptoData: (data) => {
     return ipcRenderer.invoke('save-crypto-data', data);
+  },
+
+  // Database API
+  saveOrder: (order) => {
+    return ipcRenderer.invoke('save-order', order);
+  },
+
+  getAllOrders: () => {
+    return ipcRenderer.invoke('get-all-orders');
+  },
+
+  deleteOrder: (orderId) => {
+    return ipcRenderer.invoke('delete-order', orderId);
+  },
+
+  clearMatchedOrders: () => {
+    return ipcRenderer.invoke('clear-matched-orders');
+  },
+
+  updateOrderStatus: (orderId, status) => {
+    return ipcRenderer.invoke('update-order-status', orderId, status);
+  },
+
+  // Coins API (read-only for frontend)
+  getAllCoins: () => {
+    return ipcRenderer.invoke('get-all-coins');
+  },
+
+  saveCoin: (coin) => {
+    return ipcRenderer.invoke('save-coin', coin);
+  },
+
+  updateCoinPrice: (symbol, price) => {
+    return ipcRenderer.invoke('update-coin-price', symbol, price);
+  },
+
+  updateAllCoinPrices: (pricesData) => {
+    return ipcRenderer.invoke('update-all-coin-prices', pricesData);
+  },
+
+  // Binance Sync Service API
+  manualSyncCoins: () => {
+    return ipcRenderer.invoke('manual-sync-coins');
+  },
+
+  getSyncStatus: () => {
+    return ipcRenderer.invoke('get-sync-status');
   }
 });
 

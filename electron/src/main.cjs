@@ -1,10 +1,14 @@
 const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const DatabaseService = require('./database.cjs');
+const BinanceSyncService = require('./BinanceSyncService.cjs');
 const isDev = process.env.NODE_ENV === 'development';
 
 // Keep a global reference of the window object
 let mainWindow;
+let databaseService;
+let binanceSyncService;
 
 function createWindow() {
   // Create the browser window
@@ -81,8 +85,157 @@ ipcMain.handle('save-crypto-data', async (event, data) => {
   }
 });
 
+// Database IPC handlers
+ipcMain.handle('save-order', async (event, order) => {
+  try {
+    const result = await databaseService.saveOrder(order);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error saving order:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-all-orders', async () => {
+  try {
+    const orders = await databaseService.getAllOrders();
+    return { success: true, data: orders };
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-order', async (event, orderId) => {
+  try {
+    const result = await databaseService.deleteOrder(orderId);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('clear-matched-orders', async () => {
+  try {
+    const result = await databaseService.clearMatchedOrders();
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error clearing matched orders:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-order-status', async (event, orderId, status) => {
+  try {
+    const result = await databaseService.updateOrderStatus(orderId, status);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Coins IPC handlers
+ipcMain.handle('get-all-coins', async () => {
+  try {
+    const coins = await databaseService.getAllCoins();
+    return { success: true, data: coins };
+  } catch (error) {
+    console.error('Error fetching coins:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-coin', async (event, coin) => {
+  try {
+    const result = await databaseService.saveCoin(coin);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error saving coin:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-coin-price', async (event, symbol, price) => {
+  try {
+    const result = await databaseService.updateCoinPrice(symbol, price);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error updating coin price:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-all-coin-prices', async (event, pricesData) => {
+  try {
+    const result = await databaseService.updateAllCoinPrices(pricesData);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error updating all coin prices:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Binance Sync Service IPC handlers
+ipcMain.handle('manual-sync-coins', async () => {
+  try {
+    if (binanceSyncService) {
+      await binanceSyncService.manualSync();
+      return { success: true, message: 'Manual sync completed' };
+    } else {
+      return { success: false, error: 'BinanceSyncService not initialized' };
+    }
+  } catch (error) {
+    console.error('Error during manual sync:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-sync-status', async () => {
+  try {
+    if (binanceSyncService) {
+      const status = binanceSyncService.getStatus();
+      return { success: true, data: status };
+    } else {
+      return { success: false, error: 'BinanceSyncService not initialized' };
+    }
+  } catch (error) {
+    console.error('Error getting sync status:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // App event handlers
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Initialize database
+  try {
+    databaseService = new DatabaseService();
+    await databaseService.init();
+    console.log('Database initialized successfully');
+
+    // Initialize Binance Sync Service
+    binanceSyncService = new BinanceSyncService(databaseService);
+    binanceSyncService.start();
+    console.log('BinanceSyncService started');
+
+    // Import coins data from JSON if database is empty
+    const existingCoins = await databaseService.getAllCoins();
+    if (existingCoins.length === 0) {
+      try {
+        const dataPath = path.join(__dirname, '../data/crypto-data.json');
+        const data = fs.readFileSync(dataPath, 'utf8');
+        const jsonData = JSON.parse(data);
+        await databaseService.importCoinsFromJSON(jsonData.coins);
+        console.log('Coins data imported successfully');
+      } catch (error) {
+        console.error('Error importing coins data:', error);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+  }
+
   createWindow();
 
   // macOS specific: create window when dock icon is clicked
@@ -97,7 +250,12 @@ app.whenReady().then(() => {
 });
 
 // Quit when all windows are closed (except on macOS)
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+  // Close database connection
+  if (databaseService) {
+    await databaseService.close();
+  }
+  
   if (process.platform !== 'darwin') {
     app.quit();
   }

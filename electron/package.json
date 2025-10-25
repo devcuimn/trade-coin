@@ -13,7 +13,10 @@
     "dist": "npm run build",
     "pack": "electron-builder --dir"
   },
-  "dependencies": {},
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "sqlite3": "^5.1.7"
+  },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
@@ -31,7 +34,12 @@
     "author": "Trade Coin",
     "copyright": "Copyright 2025 Trade Coin",
     "homepage": "https://tradecoin.com",
-    "keywords": ["cryptocurrency", "trading", "desktop", "app"],
+    "keywords": [
+      "cryptocurrency",
+      "trading",
+      "desktop",
+      "app"
+    ],
     "license": "MIT",
     "directories": {
       "output": "release"
@@ -46,7 +54,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -54,7 +65,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -62,7 +75,9 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }
