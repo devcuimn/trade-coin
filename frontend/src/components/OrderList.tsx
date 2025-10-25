@@ -89,21 +89,23 @@ export function OrderList({
                       <div className="flex items-center space-x-1">
                         <div className="w-5 h-5 rounded-full bg-slate-600/50 flex items-center justify-center text-xs font-bold text-slate-300">
                           {getCoinIcon(order.coin)?.startsWith('http') ? (
-                            <img 
-                              src={getCoinIcon(order.coin)} 
-                              alt={order.coin}
-                              className="w-4 h-4 rounded-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const span = target.nextElementSibling as HTMLElement;
-                                if (span) span.style.display = 'block';
-                              }}
-                            />
-                          ) : null}
-                          <span style={{display: getCoinIcon(order.coin)?.startsWith('http') ? 'none' : 'block'}}>
-                            {getCoinIcon(order.coin)}
-                          </span>
+                            <>
+                              <img 
+                                src={getCoinIcon(order.coin)} 
+                                alt={order.coin}
+                                className="w-4 h-4 rounded-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const fallback = target.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'block';
+                                }}
+                              />
+                              <span style={{display: 'none'}}>{order.coin.slice(0, 2)}</span>
+                            </>
+                          ) : (
+                            <span>{getCoinIcon(order.coin)}</span>
+                          )}
                         </div>
                         <span className="text-xs font-medium text-white">{order.coin}</span>
                         <span className={`text-xs font-bold px-1 py-0.5 rounded ${

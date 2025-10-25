@@ -3,12 +3,14 @@ const path = require('path');
 const fs = require('fs');
 const DatabaseService = require('./database.cjs');
 const BinanceSyncService = require('./BinanceSyncService.cjs');
+const CoinMarketCapService = require('./CoinMarketCapService.cjs');
 const isDev = process.env.NODE_ENV === 'development';
 
 // Keep a global reference of the window object
 let mainWindow;
 let databaseService;
 let binanceSyncService;
+let coinMarketCapService;
 
 function createWindow() {
   // Create the browser window
@@ -126,6 +128,16 @@ ipcMain.handle('clear-matched-orders', async () => {
   }
 });
 
+ipcMain.handle('clear-all-orders', async () => {
+  try {
+    const result = await databaseService.clearAllOrders();
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error clearing all orders:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('update-order-status', async (event, orderId, status) => {
   try {
     const result = await databaseService.updateOrderStatus(orderId, status);
@@ -214,20 +226,31 @@ app.whenReady().then(async () => {
     await databaseService.init();
     console.log('Database initialized successfully');
 
+    // Initialize CoinMarketCap Service
+    coinMarketCapService = new CoinMarketCapService(databaseService);
+    
+    // Fetch và save all coins từ CoinMarketCap API nếu chưa có data
+    const existingCMCnCoins = await databaseService.getAllCoinsFromCMC();
+    if (existingCMCnCoins.length === 0) {
+      console.log('No CMC coins found, fetching from API...');
+      await coinMarketCapService.saveAllCoinsToDatabase();
+      console.log('CoinMarketCap data saved successfully');
+    } else {
+      console.log(`Found ${existingCMCnCoins.length} existing CMC coins in database`);
+    }
+    
+    console.log('CoinMarketCapService initialized');
+
     // Initialize Binance Sync Service
     binanceSyncService = new BinanceSyncService(databaseService);
     binanceSyncService.start();
     console.log('BinanceSyncService started');
 
+    
     // Import coins data from JSON if database is empty
     const existingCoins = await databaseService.getAllCoins();
     if (existingCoins.length === 0) {
       try {
-        const dataPath = path.join(__dirname, '../data/crypto-data.json');
-        const data = fs.readFileSync(dataPath, 'utf8');
-        const jsonData = JSON.parse(data);
-        await databaseService.importCoinsFromJSON(jsonData.coins);
-        console.log('Coins data imported successfully');
       } catch (error) {
         console.error('Error importing coins data:', error);
       }

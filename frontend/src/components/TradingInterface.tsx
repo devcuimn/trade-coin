@@ -187,6 +187,34 @@ export function TradingInterface() {
     }
   };
 
+  const handleClearAllOrders = async () => {
+    if (orders.length === 0) {
+      alert('No orders to clear.');
+      return;
+    }
+    
+    if (window.confirm(`Are you sure you want to clear ALL ${orders.length} order(s)? This action cannot be undone.`)) {
+      try {
+        if (window.electronAPI) {
+          const result = await window.electronAPI.clearAllOrders();
+          if (result.success) {
+            setOrders([]);
+            console.log('All orders cleared successfully');
+          } else {
+            console.error('Failed to clear all orders:', result.error);
+            alert('Failed to clear all orders. Please try again.');
+          }
+        } else {
+          // Fallback to local state
+          setOrders([]);
+        }
+      } catch (error) {
+        console.error('Error clearing all orders:', error);
+        alert('Error clearing all orders. Please try again.');
+      }
+    }
+  };
+
   const handleDeleteOrder = async (orderId: string) => {
     if (window.confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
       try {
@@ -253,12 +281,22 @@ export function TradingInterface() {
               </button>
               <button 
                 onClick={handleClearMatchedOrders}
-                className="p-2 bg-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+                className="p-2 bg-orange-500/10 text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 rounded transition-all"
                 title="Clear Matched Orders"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button 
+                onClick={handleClearAllOrders}
+                className="p-2 bg-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+                title="Clear All Orders"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>

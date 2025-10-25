@@ -121,7 +121,24 @@ class BinanceSyncService {
       });
 
       // Process symbols and prepare data for database
-      const coinsToSave = symbols.map(symbol => {
+      // Get CMC coins to map icons
+      let cmcCoins = [];
+      try {
+        cmcCoins = await this.databaseService.getAllCoinsFromCMC();
+        console.log(`Found ${cmcCoins.length} CMC coins for icon mapping`);
+      } catch (error) {
+        console.log('No CMC coins found, will use fallback icons');
+      }
+
+      // Create a map of symbol -> icon_url from CMC data
+      const iconMap = new Map();
+      cmcCoins.forEach(coin => {
+        if (coin.icon_url) {
+          iconMap.set(coin.symbol, coin.icon_url);
+        }
+      });
+
+      const coinsToSave = await Promise.all(symbols.map(async (symbol) => {
         // Extract base asset (e.g., BTCUSDT -> BTC)
         const baseAsset = symbol.baseAsset;
         const quoteAsset = symbol.quoteAsset;
@@ -129,14 +146,15 @@ class BinanceSyncService {
         // Get price from price map
         const price = priceMap.get(symbol.symbol) || 0;
 
-        // Generate icon URL (using CoinGecko as fallback)
-        const icon = this.generateIconUrl(baseAsset);
-
+        // Get icon URL from CMC, or use fallback
+        const iconUrl = iconMap.get(baseAsset) || baseAsset.slice(0, 2);
+        const name = baseAsset;
+        
         return {
           symbol: baseAsset,
-          name: this.getCoinName(baseAsset),
+          name: name,
           price: price,
-          icon: icon,
+          icon: iconUrl,
           quoteAsset: quoteAsset,
           status: symbol.status,
           baseAssetPrecision: symbol.baseAssetPrecision,
@@ -144,20 +162,30 @@ class BinanceSyncService {
           isSpotTradingAllowed: symbol.isSpotTradingAllowed,
           isMarginTradingAllowed: symbol.isMarginTradingAllowed
         };
-      });
+      }));
 
       // Remove duplicates (same base asset with different quote assets)
       const uniqueCoins = this.removeDuplicateCoins(coinsToSave);
 
-      // Save to database
-      for (const coin of uniqueCoins) {
-        try {
-          await this.databaseService.saveCoin(coin);
-        } catch (error) {
-          console.error(`Error saving coin ${coin.symbol}:`, error);
+      // Check existing coins and save only new ones
+      const existingCoins = await this.databaseService.getAllCoins();
+      const existingSymbols = new Set(existingCoins.map(coin => coin.symbol));
+      
+      const newCoins = uniqueCoins.filter(coin => !existingSymbols.has(coin.symbol));
+      
+      if (newCoins.length > 0) {
+        for (const coin of newCoins) {
+          try {
+            await this.databaseService.saveCoin(coin);
+            console.log(`Saved new coin: ${coin.symbol} - ${coin.name}`);
+          } catch (error) {
+            console.error(`Error saving coin ${coin.symbol}:`, error);
+          }
         }
+        console.log(`Saved ${newCoins.length} new coins to database`);
+      } else {
+        console.log('No new coins to save - all coins already exist');
       }
-      console.log(`Saved ${uniqueCoins.length} unique coins to database`);
     } catch (error) {
       console.error('Error saving coins to database:', error);
     }
@@ -173,74 +201,6 @@ class BinanceSyncService {
       seen.add(coin.symbol);
       return true;
     });
-  }
-
-  // Generate icon URL for coin
-  generateIconUrl(symbol) {
-    // Try CoinGecko API first
-    const coinGeckoId = this.getCoinGeckoId(symbol);
-    if (coinGeckoId) {
-      return `https://assets.coingecko.com/coins/images/${coinGeckoId}/large/${symbol.toLowerCase()}.png`;
-    }
-
-    // Fallback to generic icon
-    return `https://assets.coingecko.com/coins/images/1/large/bitcoin.png`;
-  }
-
-  // Get CoinGecko ID for popular coins
-  getCoinGeckoId(symbol) {
-    const coinGeckoMap = {
-      'BTC': '1',
-      'ETH': '279',
-      'BNB': '825',
-      'SOL': '4128',
-      'ADA': '975',
-      'XRP': '44',
-      'DOT': '12171',
-      'LTC': '2',
-      'LINK': '877',
-      'BCH': '780',
-      'ETC': '453',
-      'XLM': '100',
-      'VET': '1164',
-      'TRX': '1094',
-      'EOS': '738',
-      'FIL': '12817',
-      'XTZ': '976',
-      'NEO': '480',
-      'ATOM': '1481',
-      'UNI': '12504'
-    };
-
-    return coinGeckoMap[symbol] || null;
-  }
-
-  // Get coin name
-  getCoinName(symbol) {
-    const nameMap = {
-      'BTC': 'Bitcoin',
-      'ETH': 'Ethereum',
-      'BNB': 'Binance Coin',
-      'SOL': 'Solana',
-      'ADA': 'Cardano',
-      'XRP': 'Ripple',
-      'DOT': 'Polkadot',
-      'LTC': 'Litecoin',
-      'LINK': 'Chainlink',
-      'BCH': 'Bitcoin Cash',
-      'ETC': 'Ethereum Classic',
-      'XLM': 'Stellar',
-      'VET': 'VeChain',
-      'TRX': 'Tron',
-      'EOS': 'EOS',
-      'FIL': 'Filecoin',
-      'XTZ': 'Tezos',
-      'NEO': 'Neo',
-      'ATOM': 'Cosmos',
-      'UNI': 'Uniswap'
-    };
-
-    return nameMap[symbol] || symbol;
   }
 
   // Manual sync trigger (for testing or immediate sync)

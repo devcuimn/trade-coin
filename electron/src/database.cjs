@@ -63,6 +63,29 @@ class DatabaseService {
         )
       `;
 
+      const createAllCoinsTable = `
+        CREATE TABLE IF NOT EXISTS all_coins (
+          id INTEGER PRIMARY KEY,
+          rank INTEGER,
+          name TEXT NOT NULL,
+          symbol TEXT NOT NULL,
+          slug TEXT NOT NULL,
+          is_active INTEGER NOT NULL,
+          status INTEGER NOT NULL,
+          first_historical_data TEXT,
+          last_historical_data TEXT,
+          platform_id INTEGER,
+          platform_name TEXT,
+          platform_symbol TEXT,
+          platform_slug TEXT,
+          token_address TEXT,
+          icon_url TEXT,
+          createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(id)
+        )
+      `;
+
       this.db.run(createCoinsTable, (err) => {
         if (err) {
           console.error('Error creating coins table:', err);
@@ -75,10 +98,19 @@ class DatabaseService {
           if (err) {
             console.error('Error creating orders table:', err);
             reject(err);
-          } else {
-            console.log('Orders table created successfully');
-            resolve();
+            return;
           }
+          console.log('Orders table created successfully');
+          
+          this.db.run(createAllCoinsTable, (err) => {
+            if (err) {
+              console.error('Error creating all_coins table:', err);
+              reject(err);
+            } else {
+              console.log('All_coins table created successfully');
+              resolve();
+            }
+          });
         });
       });
     });
@@ -98,7 +130,7 @@ class DatabaseService {
             symbol: row.symbol,
             name: row.name,
             price: parseFloat(row.price),
-            icon: row.icon || `https://assets.coingecko.com/coins/images/1/large/bitcoin.png`
+            icon: row.icon || row.symbol.slice(0, 2),
           }));
           resolve(coins);
         }
@@ -109,8 +141,8 @@ class DatabaseService {
   async saveCoin(coin) {
     return new Promise((resolve, reject) => {
       const sql = `
-        INSERT OR REPLACE INTO coins (symbol, name, price, icon, updatedAt)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO coins (symbol, name, price, icon, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `;
 
       const values = [
@@ -272,6 +304,22 @@ class DatabaseService {
     });
   }
 
+  async clearAllOrders() {
+    return new Promise((resolve, reject) => {
+      const sql = 'DELETE FROM orders';
+      
+      this.db.run(sql, [], function(err) {
+        if (err) {
+          console.error('Error clearing all orders:', err);
+          reject(err);
+        } else {
+          console.log(`Cleared ${this.changes} orders`);
+          resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
   async updateOrderStatus(orderId, status) {
     return new Promise((resolve, reject) => {
       const sql = 'UPDATE orders SET status = ? WHERE id = ?';
@@ -306,6 +354,220 @@ class DatabaseService {
         console.error('Error updating all coin prices:', error);
         reject(error);
       }
+    });
+  }
+
+  // All Coins CRUD operations (CoinMarketCap data)
+  async getAllCoinsFromCMC() {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM all_coins ORDER BY rank ASC';
+      
+      this.db.all(sql, [], (err, rows) => {
+        if (err) {
+          console.error('Error fetching all coins:', err);
+          reject(err);
+        } else {
+          const coins = rows.map(row => ({
+            id: row.id,
+            rank: row.rank,
+            name: row.name,
+            symbol: row.symbol,
+            slug: row.slug,
+            is_active: row.is_active,
+            status: row.status,
+            first_historical_data: row.first_historical_data,
+            last_historical_data: row.last_historical_data,
+            platform: row.platform_id ? {
+              id: row.platform_id,
+              name: row.platform_name,
+              symbol: row.platform_symbol,
+              slug: row.platform_slug,
+              token_address: row.token_address
+            } : null,
+            icon_url: row.icon_url,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt
+          }));
+          resolve(coins);
+        }
+      });
+    });
+  }
+
+  async saveAllCoinsFromCMC(coinsData) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        let savedCount = 0;
+        let updatedCount = 0;
+        
+        for (const coin of coinsData) {
+          try {
+            // Check if coin already exists
+            const existingCoin = await this.getCoinById(coin.id);
+            
+            if (existingCoin) {
+              // Update existing coin
+              await this.updateAllCoinFromCMC(coin);
+              updatedCount++;
+            } else {
+              // Insert new coin
+              await this.insertAllCoinFromCMC(coin);
+              savedCount++;
+            }
+          } catch (error) {
+            console.error(`Error processing coin ${coin.symbol} (ID: ${coin.id}):`, error);
+          }
+        }
+        
+        console.log(`Saved ${savedCount} new coins and updated ${updatedCount} existing coins`);
+        resolve({ saved: savedCount, updated: updatedCount });
+      } catch (error) {
+        console.error('Error saving all coins from CMC:', error);
+        reject(error);
+      }
+    });
+  }
+
+  async getCoinById(id) {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM all_coins WHERE id = ?';
+      
+      this.db.get(sql, [id], (err, row) => {
+        if (err) {
+          console.error('Error fetching coin by ID:', err);
+          reject(err);
+        } else {
+          if (row) {
+            resolve({
+              id: row.id,
+              rank: row.rank,
+              name: row.name,
+              symbol: row.symbol,
+              slug: row.slug,
+              is_active: row.is_active,
+              status: row.status,
+              first_historical_data: row.first_historical_data,
+              last_historical_data: row.last_historical_data,
+              platform: row.platform_id ? {
+                id: row.platform_id,
+                name: row.platform_name,
+                symbol: row.platform_symbol,
+                slug: row.platform_slug,
+                token_address: row.token_address
+              } : null,
+              icon_url: row.icon_url,
+              createdAt: row.createdAt,
+              updatedAt: row.updatedAt
+            });
+          } else {
+            resolve(null);
+          }
+        }
+      });
+    });
+  }
+
+  async insertAllCoinFromCMC(coin) {
+    return new Promise((resolve, reject) => {
+      // Generate icon URL from coin ID
+      const iconUrl = coin.id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${coin.id}.png` : null;
+      
+      const sql = `
+        INSERT INTO all_coins (
+          id, rank, name, symbol, slug, is_active, status,
+          first_historical_data, last_historical_data,
+          platform_id, platform_name, platform_symbol, platform_slug, token_address, icon_url,
+          createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `;
+
+      const values = [
+        coin.id,
+        coin.rank,
+        coin.name,
+        coin.symbol,
+        coin.slug,
+        coin.is_active,
+        coin.status,
+        coin.first_historical_data,
+        coin.last_historical_data,
+        coin.platform ? coin.platform.id : null,
+        coin.platform ? coin.platform.name : null,
+        coin.platform ? coin.platform.symbol : null,
+        coin.platform ? coin.platform.slug : null,
+        coin.platform ? coin.platform.token_address : null,
+        iconUrl
+      ];
+
+      this.db.run(sql, values, function(err) {
+        if (err) {
+          console.error('Error inserting coin:', err);
+          reject(err);
+        } else {
+          console.log(`Coin inserted: ${coin.symbol} (ID: ${coin.id})`);
+          resolve({ id: coin.id, changes: this.changes });
+        }
+      });
+    });
+  }
+
+  async updateAllCoinFromCMC(coin) {
+    return new Promise((resolve, reject) => {
+      // Generate icon URL from coin ID
+      const iconUrl = coin.id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${coin.id}.png` : null;
+      
+      const sql = `
+        UPDATE all_coins SET 
+          rank = ?, name = ?, symbol = ?, slug = ?, is_active = ?, status = ?,
+          first_historical_data = ?, last_historical_data = ?,
+          platform_id = ?, platform_name = ?, platform_symbol = ?, platform_slug = ?, token_address = ?, icon_url = ?,
+          updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+
+      const values = [
+        coin.rank,
+        coin.name,
+        coin.symbol,
+        coin.slug,
+        coin.is_active,
+        coin.status,
+        coin.first_historical_data,
+        coin.last_historical_data,
+        coin.platform ? coin.platform.id : null,
+        coin.platform ? coin.platform.name : null,
+        coin.platform ? coin.platform.symbol : null,
+        coin.platform ? coin.platform.slug : null,
+        coin.platform ? coin.platform.token_address : null,
+        iconUrl,
+        coin.id
+      ];
+
+      this.db.run(sql, values, function(err) {
+        if (err) {
+          console.error('Error updating coin:', err);
+          reject(err);
+        } else {
+          console.log(`Coin updated: ${coin.symbol} (ID: ${coin.id})`);
+          resolve({ id: coin.id, changes: this.changes });
+        }
+      });
+    });
+  }
+
+  async clearAllCoinsFromCMC() {
+    return new Promise((resolve, reject) => {
+      const sql = 'DELETE FROM all_coins';
+      
+      this.db.run(sql, [], function(err) {
+        if (err) {
+          console.error('Error clearing all coins:', err);
+          reject(err);
+        } else {
+          console.log(`Cleared ${this.changes} coins from all_coins table`);
+          resolve({ changes: this.changes });
+        }
+      });
     });
   }
 

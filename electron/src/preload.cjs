@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('clear-matched-orders');
   },
 
+  clearAllOrders: () => {
+    return ipcRenderer.invoke('clear-all-orders');
+  },
+
   updateOrderStatus: (orderId, status) => {
     return ipcRenderer.invoke('update-order-status', orderId, status);
   },
