@@ -107,3 +107,4 @@ temp/
 *.sln
 *.sw?
 /electron/release
+electron/data/trading.db
