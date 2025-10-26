@@ -2,12 +2,60 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const crypto = require('crypto');
 
 class DatabaseService {
   constructor() {
     this.db = null;
     // Lưu database vào thư mục electron/data
     this.dbPath = path.join(__dirname, '../data/trading.db');
+    // Encryption key - trong production nên lưu trong environment variable
+    this.encryptionKey = crypto.createHash('sha256').update('trading-app-secret-key').digest();
+  }
+
+  // Encrypt sensitive data
+  encrypt(text) {
+    try {
+      const algorithm = 'aes-256-cbc';
+      const iv = crypto.randomBytes(16);
+      // Ensure key is 32 bytes
+      const key = Buffer.from(this.encryptionKey).slice(0, 32);
+      
+      const cipher = crypto.createCipheriv(algorithm, key, iv);
+      let encrypted = cipher.update(text, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      return iv.toString('hex') + ':' + encrypted;
+    } catch (error) {
+      console.error('Encryption error:', error);
+      throw error;
+    }
+  }
+
+  // Decrypt sensitive data
+  decrypt(encryptedText) {
+    try {
+      const algorithm = 'aes-256-cbc';
+      const parts = encryptedText.split(':');
+      
+      if (parts.length !== 2) {
+        throw new Error('Invalid encrypted text format');
+      }
+      
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      // Ensure key is 32 bytes
+      const key = Buffer.from(this.encryptionKey).slice(0, 32);
+      
+      const decipher = crypto.createDecipheriv(algorithm, key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      throw error;
+    }
   }
 
   async init() {
@@ -86,6 +134,24 @@ class DatabaseService {
         )
       `;
 
+      const createAccountsTable = `
+        CREATE TABLE IF NOT EXISTS accounts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL CHECK (type IN ('spot', 'futures')),
+          balance REAL NOT NULL DEFAULT 0,
+          updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
+      const createApiKeysTable = `
+        CREATE TABLE IF NOT EXISTS api_keys (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          apiKey TEXT NOT NULL,
+          apiSecret TEXT NOT NULL,
+          updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
       this.db.run(createCoinsTable, (err) => {
         if (err) {
           console.error('Error creating coins table:', err);
@@ -106,10 +172,29 @@ class DatabaseService {
             if (err) {
               console.error('Error creating all_coins table:', err);
               reject(err);
-            } else {
-              console.log('All_coins table created successfully');
-              resolve();
+              return;
             }
+            console.log('All_coins table created successfully');
+            
+            this.db.run(createAccountsTable, (err) => {
+              if (err) {
+                console.error('Error creating accounts table:', err);
+                reject(err);
+                return;
+              }
+              console.log('Accounts table created successfully');
+              
+              this.db.run(createApiKeysTable, (err) => {
+                if (err) {
+                  console.error('Error creating api_keys table:', err);
+                  reject(err);
+                } else {
+                  console.log('API keys table created successfully');
+                  // Initialize with default balances if empty
+                  this.initializeAccounts().then(resolve).catch(reject);
+                }
+              });
+            });
           });
         });
       });
@@ -565,6 +650,186 @@ class DatabaseService {
         } else {
           console.log(`Cleared ${this.changes} coins from all_coins table`);
           resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
+  // Accounts methods
+  async initializeAccounts() {
+    return new Promise((resolve, reject) => {
+      // Check if accounts already exist
+      const checkSql = 'SELECT COUNT(*) as count FROM accounts';
+      
+      this.db.get(checkSql, [], (err, row) => {
+        if (err) {
+          console.error('Error checking accounts:', err);
+          reject(err);
+          return;
+        }
+
+        // If no accounts exist, create default ones
+        if (row.count === 0) {
+          const insertSpot = 'INSERT INTO accounts (type, balance) VALUES (?, ?)';
+          const insertFutures = 'INSERT INTO accounts (type, balance) VALUES (?, ?)';
+          
+          this.db.run(insertSpot, ['spot', 50000], (err) => {
+            if (err) {
+              console.error('Error creating spot account:', err);
+              reject(err);
+              return;
+            }
+            
+            this.db.run(insertFutures, ['futures', 25000], (err) => {
+              if (err) {
+                console.error('Error creating futures account:', err);
+                reject(err);
+              } else {
+                console.log('Default accounts created successfully');
+                resolve();
+              }
+            });
+          });
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  async getAccount(type) {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM accounts WHERE type = ?';
+      
+      this.db.get(sql, [type], (err, row) => {
+        if (err) {
+          console.error('Error fetching account:', err);
+          reject(err);
+        } else {
+          if (row) {
+            resolve({
+              type: row.type,
+              balance: parseFloat(row.balance),
+              updatedAt: row.updatedAt
+            });
+          } else {
+            resolve(null);
+          }
+        }
+      });
+    });
+  }
+
+  async getAllAccounts() {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM accounts';
+      
+      this.db.all(sql, [], (err, rows) => {
+        if (err) {
+          console.error('Error fetching accounts:', err);
+          reject(err);
+        } else {
+          const accounts = rows.map(row => ({
+            type: row.type,
+            balance: parseFloat(row.balance),
+            updatedAt: row.updatedAt
+          }));
+          resolve(accounts);
+        }
+      });
+    });
+  }
+
+  async updateAccountBalance(type, balance) {
+    return new Promise((resolve, reject) => {
+      const sql = 'UPDATE accounts SET balance = ?, updatedAt = CURRENT_TIMESTAMP WHERE type = ?';
+      
+      this.db.run(sql, [balance, type], function(err) {
+        if (err) {
+          console.error('Error updating account balance:', err);
+          reject(err);
+        } else {
+          console.log(`Account ${type} balance updated to ${balance}`);
+          resolve({ type, balance, changes: this.changes });
+        }
+      });
+    });
+  }
+
+  async getApiKeys() {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM api_keys ORDER BY id DESC LIMIT 1';
+      
+      this.db.get(sql, [], (err, row) => {
+        if (err) {
+          console.error('Error fetching API keys:', err);
+          reject(err);
+        } else {
+          if (row) {
+            // Decrypt the API secret
+            let decryptedSecret = '';
+            try {
+              decryptedSecret = this.decrypt(row.apiSecret);
+            } catch (error) {
+              console.error('Error decrypting API secret:', error);
+              // If decryption fails, return empty string
+              decryptedSecret = '';
+            }
+            
+            resolve({
+              apiKey: row.apiKey,
+              apiSecret: decryptedSecret,
+              updatedAt: row.updatedAt
+            });
+          } else {
+            resolve(null);
+          }
+        }
+      });
+    });
+  }
+
+  async updateApiKeys(apiKey, apiSecret) {
+    return new Promise((resolve, reject) => {
+      // Check if API keys exist
+      const checkSql = 'SELECT COUNT(*) as count FROM api_keys';
+      
+      this.db.get(checkSql, [], (err, row) => {
+        if (err) {
+          console.error('Error checking API keys:', err);
+          reject(err);
+          return;
+        }
+
+        if (row.count === 0) {
+          // Encrypt API secret before saving
+          const encryptedSecret = this.encrypt(apiSecret);
+          // Insert new API keys
+          const insertSql = 'INSERT INTO api_keys (apiKey, apiSecret) VALUES (?, ?)';
+          this.db.run(insertSql, [apiKey, encryptedSecret], function(err) {
+            if (err) {
+              console.error('Error inserting API keys:', err);
+              reject(err);
+            } else {
+              console.log('API keys inserted successfully (encrypted)');
+              resolve({ apiKey, apiSecret, changes: this.changes });
+            }
+          });
+        } else {
+          // Encrypt API secret before saving
+          const encryptedSecret = this.encrypt(apiSecret);
+          
+          // Update existing API keys
+          const updateSql = 'UPDATE api_keys SET apiKey = ?, apiSecret = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM api_keys ORDER BY id DESC LIMIT 1)';
+          this.db.run(updateSql, [apiKey, encryptedSecret], function(err) {
+            if (err) {
+              console.error('Error updating API keys:', err);
+              reject(err);
+            } else {
+              console.log('API keys updated successfully (encrypted)');
+              resolve({ apiKey, apiSecret, changes: this.changes });
+            }
+          });
         }
       });
     });

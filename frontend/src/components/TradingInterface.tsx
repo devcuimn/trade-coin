@@ -37,7 +37,10 @@ declare global {
       manualSyncCoins: () => Promise<{success: boolean, message?: string, error?: string}>;
       getSyncStatus: () => Promise<{success: boolean, data?: {isRunning: boolean, nextSync: Date | null}, error?: string}>;
       onPriceUpdate: (callback: (event: any, prices: Record<string, number>) => void) => void;
+      onBalanceUpdate: (callback: (event: any, balances: {spot: number, futures: number}) => void) => void;
       removeAllListeners: (channel: string) => void;
+      getAllAccounts: () => Promise<{success: boolean, data?: any[], error?: string}>;
+      updateApiKeys: (apiKey: string, apiSecret: string) => Promise<{success: boolean, data?: any, error?: string}>;
     };
   }
 }
@@ -46,11 +49,14 @@ export function TradingInterface() {
   const [coins, setCoins] = useState<{symbol: string, name: string, price: number, icon: string, priceChange?: 'up' | 'down'}[]>([]);
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [isFuturesModalOpen, setIsFuturesModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
   
   const accountName = 'Trading Account';
-  const spotBalance = 50000;
-  const futuresBalance = 25000;
+  const [spotBalance, setSpotBalance] = useState<number | { usdtBalance: number; coins: any[]; totalValue: number }>(0);
+  const [futuresBalance, setFuturesBalance] = useState<number | { totalBalance: number; availableBalance: number; unrealizedPnL: number; positions?: any[] }>(0);
 
   // Load coins data from database
   useEffect(() => {
@@ -74,7 +80,7 @@ export function TradingInterface() {
     loadCoins();
   }, []);
 
-  // Listen for real-time price updates (continuous, no cleanup)
+  // Listen for real-time price updates
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onPriceUpdate) {
       const handlePriceUpdate = (event: any, prices: Record<string, number>) => { // prices is an object, not a map 
@@ -113,8 +119,32 @@ export function TradingInterface() {
         );
       };
 
-      // Register listener (keep running continuously)
+      // Register listener
       window.electronAPI.onPriceUpdate(handlePriceUpdate);
+      
+      // Cleanup function
+      return () => {
+        window.electronAPI.removeAllListeners('price-update');
+      };
+    }
+  }, []);
+
+  // Listen for real-time balance updates
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onBalanceUpdate) {
+      const handleBalanceUpdate = (event: any, balances: {spot: number | { usdtBalance: number; coins: any[]; totalValue: number }, futures: number | { totalBalance: number; availableBalance: number; unrealizedPnL: number; positions?: any[] }}) => {
+        console.log('Balance update received:', balances);
+        setSpotBalance(balances.spot);
+        setFuturesBalance(balances.futures);
+      };
+
+      // Register listener
+      window.electronAPI.onBalanceUpdate(handleBalanceUpdate);
+      
+      // Cleanup function
+      return () => {
+        window.electronAPI.removeAllListeners('balance-update');
+      };
     }
   }, []);
 
@@ -313,6 +343,45 @@ export function TradingInterface() {
       }
     }
   };
+
+  const handleOpenApiKeyModal = () => {
+    setApiKey('');
+    setApiSecret('');
+    setIsApiKeyModalOpen(true);
+  };
+
+  const handleSaveApiKeys = async () => {
+    if (!apiKey || !apiSecret) {
+      alert('Please enter both API Key and Secret');
+      return;
+    }
+
+    try {
+      if (window.electronAPI) {
+        const result = await window.electronAPI.updateApiKeys(apiKey, apiSecret);
+        console.log('API Keys result:', result);
+        if (result.success) {
+          // Update balances from API response
+          console.log('Full result.data:', result.data);
+          if (result.data?.balances) {
+            console.log('Updating balances:', result.data.balances);
+            setSpotBalance(result.data.balances.spot);
+            setFuturesBalance(result.data.balances.futures);
+          }
+          alert('API Keys saved successfully! Balances updated.');
+          setIsApiKeyModalOpen(false);
+          setApiKey('');
+          setApiSecret('');
+        } else {
+          console.error('Failed to save API keys:', result.error);
+          alert('Failed to save API keys. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving API keys:', error);
+      alert('Error saving API keys. Please try again.');
+    }
+  };
     
     return (
     <div className="w-full min-h-screen gradient-bg text-white p-6 animate-fadeInUp">
@@ -322,6 +391,7 @@ export function TradingInterface() {
         spotBalance={spotBalance}
         futuresBalance={futuresBalance}
         onManualSync={handleManualSync}
+        onOpenApiKeyModal={handleOpenApiKeyModal}
       />
       
       <div className="max-w-6xl mx-auto">
@@ -391,6 +461,70 @@ export function TradingInterface() {
           />
         </div>
       </div>
+
+      {/* API Key Configuration Modal */}
+      {isApiKeyModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">
+                Configure API Keys
+              </h2>
+              <button
+                onClick={() => setIsApiKeyModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  API Key
+                </label>
+                <input
+                  type="text"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Enter your API Key"
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Secret Key
+                </label>
+                <input
+                  type="password"
+                  value={apiSecret}
+                  onChange={(e) => setApiSecret(e.target.value)}
+                  placeholder="Enter your Secret Key"
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSaveApiKeys}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium transition-all duration-200"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setIsApiKeyModalOpen(false)}
+                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Spot Trading Modal */}
       <TradingModal

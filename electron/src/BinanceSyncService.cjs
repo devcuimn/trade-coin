@@ -2,13 +2,17 @@
 // Chạy mỗi 1 giờ để sync coins từ Binance API
 
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 
 class BinanceSyncService {
-  constructor(databaseService) {
+  constructor(databaseService, mainWindow = null) {
     this.databaseService = databaseService;
+    this.mainWindow = mainWindow;
     this.isRunning = false;
     this.intervalId = null;
+    this.balanceIntervalId = null;
     this.SYNC_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
+    this.BALANCE_UPDATE_INTERVAL = 5 * 1000; // 5 seconds in milliseconds
     this.API_BASE_URL = 'https://api.binance.com';
     
     console.log('BinanceSyncService initialized');
@@ -210,6 +214,286 @@ class BinanceSyncService {
       isRunning: this.isRunning,
       nextSync: this.isRunning ? new Date(Date.now() + this.SYNC_INTERVAL) : null
     };
+  }
+
+  // Generate signature for signed requests
+  generateSignature(queryString, secret) {
+    return crypto.createHmac('sha256', secret).update(queryString).digest('hex');
+  }
+
+  // Fetch account balances from Binance
+  async fetchAccountBalances(apiKey, apiSecret) {
+    try {
+      // Fetch Spot balance
+      const spotData = await this.fetchSpotBalance(apiKey, apiSecret);
+      
+      // Calculate USD value for each spot coin
+      const spotCoinsWithValue = await this.calculateSpotCoinsValue(spotData.coins);
+      
+      // Fetch Futures balance (now returns object with totalBalance, availableBalance, unrealizedPnL)
+      const futuresData = await this.fetchFuturesBalance(apiKey, apiSecret);
+      
+      // Calculate total spot value (USDT + coins in USD)
+      const totalSpotValue = spotData.usdtBalance + spotCoinsWithValue.reduce((sum, coin) => sum + coin.value, 0);
+      
+      return {
+        spot: {
+          usdtBalance: spotData.usdtBalance,
+          coins: spotCoinsWithValue,
+          totalValue: totalSpotValue
+        },
+        futures: futuresData
+      };
+    } catch (error) {
+      console.error('Error fetching Binance account balances:', error);
+      throw error;
+    }
+  }
+
+  // Calculate USD value for spot coins
+  async calculateSpotCoinsValue(coins) {
+    if (coins.length === 0) return [];
+    
+    try {
+      // Fetch current prices from Binance
+      const response = await fetch(`${this.API_BASE_URL}/api/v3/ticker/price`);
+      const allPrices = await response.json();
+      
+      return coins.map(coin => {
+        // Find price for this coin in USDT
+        const priceData = allPrices.find(p => p.symbol === `${coin.asset}USDT`);
+        const price = priceData ? parseFloat(priceData.price) : 0;
+        const value = coin.balance * price;
+        
+        return {
+          ...coin,
+          price: price,
+          value: value
+        };
+      });
+    } catch (error) {
+      console.error('Error calculating spot coins value:', error);
+      return coins;
+    }
+  }
+
+  // Fetch Spot balance
+  async fetchSpotBalance(apiKey, apiSecret) {
+    try {
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      const signature = this.generateSignature(queryString, apiSecret);
+
+      const url = `${this.API_BASE_URL}/api/v3/account?${queryString}&signature=${signature}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-MBX-APIKEY': apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const balances = data.balances || [];
+      
+      // Find USDT balance
+      const usdtBalance = balances.find(b => b.asset === 'USDT');
+      const spotUSDT = usdtBalance ? parseFloat(usdtBalance.free) : 0;
+      
+      // Get all coins with balance > 0 (excluding USDT and BUSD)
+      const spotCoins = balances
+        .filter(b => {
+          const balance = parseFloat(b.free);
+          return balance > 0 && !['USDT', 'BUSD'].includes(b.asset);
+        })
+        .map(b => ({
+          asset: b.asset,
+          balance: parseFloat(b.free),
+          value: 0 // Will be calculated later
+        }));
+      
+      return {
+        usdtBalance: spotUSDT,
+        coins: spotCoins
+      };
+    } catch (error) {
+      console.error('Error fetching Spot balance:', error);
+      return { usdtBalance: 0, coins: [] };
+    }
+  }
+
+  // Fetch Futures balance
+  async fetchFuturesBalance(apiKey, apiSecret) {
+    try {
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      const signature = this.generateSignature(queryString, apiSecret);
+
+      const url = `https://fapi.binance.com/fapi/v2/balance?${queryString}&signature=${signature}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-MBX-APIKEY': apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Find USDT balance
+      const usdtBalance = data.find(b => b.asset === 'USDT');
+      if (!usdtBalance) return { totalBalance: 0, availableBalance: 0, unrealizedPnL: 0, positions: [] };
+      
+      // totalBalance = Total balance (includes unrealized PnL)
+      // availableBalance = Available balance (excluding unrealized PnL)
+      // unrealizedPnL = Unrealized profit/loss from open positions
+      const totalBalance = parseFloat(usdtBalance.balance) || 0;
+      const availableBalance = parseFloat(usdtBalance.availableBalance) || 0;
+      const unrealizedPnL = parseFloat(usdtBalance.crossUnPnl) || 0;
+      
+      // Fetch open positions
+      const positions = await this.fetchOpenPositions(apiKey, apiSecret);
+      
+      // Calculate total PnL from all positions
+      const totalPnLFromPositions = positions.reduce((sum, pos) => sum + pos.unRealizedProfit, 0);
+      
+      // Use position-based PnL if available, otherwise use crossUnPnl
+      const effectivePnL = positions.length > 0 ? totalPnLFromPositions : unrealizedPnL;
+      
+      console.log('Futures Balance Debug:', {
+        crossUnPnl: unrealizedPnL,
+        totalPnLFromPositions: totalPnLFromPositions,
+        effectivePnL: effectivePnL,
+        positionsCount: positions.length
+      });
+      
+      return {
+        totalBalance: totalBalance,
+        availableBalance: availableBalance,
+        unrealizedPnL: effectivePnL,
+        positions: positions
+      };
+    } catch (error) {
+      console.error('Error fetching Futures balance:', error);
+      return { totalBalance: 0, availableBalance: 0, unrealizedPnL: 0, positions: [] };
+    }
+  }
+
+  // Fetch open positions
+  async fetchOpenPositions(apiKey, apiSecret) {
+    try {
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      const signature = this.generateSignature(queryString, apiSecret);
+
+      const url = `https://fapi.binance.com/fapi/v2/positionRisk?${queryString}&signature=${signature}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-MBX-APIKEY': apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Filter only open positions (positionAmt != 0)
+      const openPositions = data
+        .filter(pos => Math.abs(parseFloat(pos.positionAmt)) > 0)
+        .map(pos => ({
+          symbol: pos.symbol,
+          positionAmt: parseFloat(pos.positionAmt),
+          entryPrice: parseFloat(pos.entryPrice),
+          markPrice: parseFloat(pos.markPrice),
+          unRealizedProfit: parseFloat(pos.unRealizedProfit),
+          leverage: parseInt(pos.leverage),
+          marginType: pos.marginType,
+          positionSide: pos.positionSide
+        }));
+      
+      return openPositions;
+    } catch (error) {
+      console.error('Error fetching open positions:', error);
+      return [];
+    }
+  }
+
+  // Fetch balances when API keys are updated
+  async updateAccountBalancesFromBinance(apiKey, apiSecret) {
+    try {
+      console.log('Fetching balances from Binance...');
+      const balances = await this.fetchAccountBalances(apiKey, apiSecret);
+      
+      // Update spot balance (use totalValue for database)
+      await this.databaseService.updateAccountBalance('spot', balances.spot.totalValue);
+      console.log('Updated spot balance:', balances.spot.totalValue);
+      
+      // Update futures balance (use totalBalance for database)
+      await this.databaseService.updateAccountBalance('futures', balances.futures.totalBalance);
+      console.log('Updated futures balance:', balances.futures.totalBalance);
+      
+      return balances;
+    } catch (error) {
+      console.error('Error updating account balances:', error);
+      throw error;
+    }
+  }
+
+  // Start periodic balance updates
+  startBalanceUpdates() {
+    if (this.balanceIntervalId) {
+      console.log('Balance updates already running');
+      return;
+    }
+
+    console.log('Starting balance updates every 5 seconds');
+    
+    this.balanceIntervalId = setInterval(async () => {
+      try {
+        // Get API keys from database
+        const apiKeys = await this.databaseService.getApiKeys();
+        if (!apiKeys || !apiKeys.apiKey || !apiKeys.apiSecret) {
+          return; // No API keys, skip update
+        }
+
+        // Fetch and send balances
+        const balances = await this.fetchAccountBalances(apiKeys.apiKey, apiKeys.apiSecret);
+        
+        // Update database
+        await this.databaseService.updateAccountBalance('spot', balances.spot.totalValue);
+        await this.databaseService.updateAccountBalance('futures', balances.futures.totalBalance);
+        
+        // Send to frontend
+        if (this.mainWindow) {
+          this.mainWindow.webContents.send('balance-update', balances);
+        }
+        
+        console.log('Balances updated:', balances);
+      } catch (error) {
+        console.error('Error in balance update:', error);
+      }
+    }, this.BALANCE_UPDATE_INTERVAL);
+  }
+
+  // Stop periodic balance updates
+  stopBalanceUpdates() {
+    if (this.balanceIntervalId) {
+      clearInterval(this.balanceIntervalId);
+      this.balanceIntervalId = null;
+      console.log('Balance updates stopped');
+    }
   }
 }
 

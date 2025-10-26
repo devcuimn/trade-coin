@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('price-update', callback);
   },
 
+  // Balance update event listener
+  onBalanceUpdate: (callback) => {
+    ipcRenderer.on('balance-update', callback);
+  },
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
@@ -92,6 +97,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getSyncStatus: () => {
     return ipcRenderer.invoke('get-sync-status');
+  },
+
+  // Accounts API
+  getAllAccounts: () => {
+    return ipcRenderer.invoke('get-all-accounts');
+  },
+
+  getAccount: (type) => {
+    return ipcRenderer.invoke('get-account', type);
+  },
+
+  updateAccountBalance: (type, balance) => {
+    return ipcRenderer.invoke('update-account-balance', type, balance);
+  },
+
+  updateApiKeys: (apiKey, apiSecret) => {
+    return ipcRenderer.invoke('update-api-keys', apiKey, apiSecret);
   }
 });
 

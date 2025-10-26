@@ -220,6 +220,66 @@ ipcMain.handle('get-sync-status', async () => {
   }
 });
 
+// Accounts IPC handlers
+ipcMain.handle('get-all-accounts', async () => {
+  try {
+    const accounts = await databaseService.getAllAccounts();
+    return { success: true, data: accounts };
+  } catch (error) {
+    console.error('Error fetching accounts:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-account', async (event, type) => {
+  try {
+    const account = await databaseService.getAccount(type);
+    return { success: true, data: account };
+  } catch (error) {
+    console.error('Error fetching account:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-account-balance', async (event, type, balance) => {
+  try {
+    const result = await databaseService.updateAccountBalance(type, balance);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error updating account balance:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-api-keys', async (event, apiKey, apiSecret) => {
+  try {
+    // Save API keys to database
+    const result = await databaseService.updateApiKeys(apiKey, apiSecret);
+    
+    let balances = { spot: 0, futures: 0 };
+    
+    // Fetch balances from Binance
+    try {
+      balances = await binanceSyncService.updateAccountBalancesFromBinance(apiKey, apiSecret);
+      console.log('Successfully fetched balances from Binance:', balances);
+    } catch (balanceError) {
+      console.error('Error fetching balances from Binance:', balanceError);
+      // Continue even if balance fetch fails
+    }
+    
+    return { 
+      success: true, 
+      data: {
+        ...result,
+        balances: balances
+      }
+    };
+  } catch (error) {
+    console.error('Error updating API keys:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // App event handlers
 app.whenReady().then(async () => {
   // Initialize database
@@ -269,6 +329,11 @@ app.whenReady().then(async () => {
     priceUpdateService = new PriceUpdateService(mainWindow, databaseService);
     priceUpdateService.start();
     console.log('PriceUpdateService started - updating prices every 2 seconds');
+    
+    // Start balance updates
+    binanceSyncService.mainWindow = mainWindow;
+    binanceSyncService.startBalanceUpdates();
+    console.log('Balance updates started - every 5 seconds');
   }
 
   // macOS specific: create window when dock icon is clicked
