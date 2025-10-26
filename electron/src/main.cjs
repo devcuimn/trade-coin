@@ -38,7 +38,7 @@ function createWindow() {
     // In development, load from Vite dev server
     mainWindow.loadURL('http://localhost:5173');
     // Open DevTools in development
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
   } else {
     // In production, load from built files
     mainWindow.loadFile(path.join(__dirname, '../frontend/dist/index.html'));

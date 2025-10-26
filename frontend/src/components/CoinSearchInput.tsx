@@ -64,7 +64,7 @@ export function CoinSearchInput({ coins, selectedCoin, onCoinSelect, onClear }: 
 
   const handleCoinSelect = useCallback((coin: Coin) => {
     onCoinSelect(coin);
-    const searchText = `${coin.symbol} - ${coin.name} ($${coin.price.toLocaleString()})`;
+    const searchText = `${coin.symbol.toUpperCase()} - ${coin.name} ($${coin.price.toLocaleString()})`;
     setCoinSearchTerm(searchText);
     
     if (coinSearchInputRef.current) {
@@ -98,7 +98,7 @@ export function CoinSearchInput({ coins, selectedCoin, onCoinSelect, onClear }: 
   // Set initial value when selectedCoin changes
   useMemo(() => {
     if (selectedCoin && coinSearchInputRef.current) {
-      const searchText = `${selectedCoin.symbol} - ${selectedCoin.name} ($${selectedCoin.price.toLocaleString()})`;
+      const searchText = `${selectedCoin.symbol.toUpperCase()} - ${selectedCoin.name} ($${selectedCoin.price.toLocaleString()})`;
       coinSearchInputRef.current.value = searchText;
       setCoinSearchTerm(searchText);
     }
@@ -166,7 +166,7 @@ export function CoinSearchInput({ coins, selectedCoin, onCoinSelect, onClear }: 
                     </span>
                   </div>
                   <div>
-                    <div className="font-medium">{coin.symbol}</div>
+                    <div className="font-medium">{coin.symbol.toUpperCase()}</div>
                     <div className="text-xs text-slate-400">{coin.name}</div>
                   </div>
                 </div>

@@ -125,10 +125,10 @@ export function TradingModal({
     // Update selected coin state
     setCurrentSelectedCoin(coin);
     
-    setCoinSearchTerm(`${coin.symbol} - ${coin.name} ($${coin.price.toString()})`);
+    setCoinSearchTerm(`${coin.symbol.toUpperCase()} - ${coin.name} ($${coin.price.toString()})`);
     setShowCoinDropdown(false);
     if (coinSearchInputRef.current) {
-      coinSearchInputRef.current.value = `${coin.symbol} - ${coin.name} ($${coin.price.toString()})`;
+      coinSearchInputRef.current.value = `${coin.symbol.toUpperCase()} - ${coin.name} ($${coin.price.toString()})`;
     }
     
     // Clear price, total and trigger price when selecting new coin
@@ -328,7 +328,7 @@ export function TradingModal({
                           </span>
                         </div>
                         <div>
-                          <div className="font-semibold text-sm">{coin.symbol}</div>
+                          <div className="font-semibold text-sm">{coin.symbol.toUpperCase()}</div>
                           <div className="text-xs opacity-75">{coin.name}</div>
                         </div>
                       </div>
@@ -416,12 +416,37 @@ export function TradingModal({
           </div>
         )}
 
-        {/* Price, Total and Trigger Price Inputs */}
+        {/* Stop, Limit and Total Inputs */}
         <div className="mb-4">
           <div className="flex gap-3">
+            {/* Trigger Price Input (for Stop orders) */}
+            {currentOrderExecutionType === 'stop-limit' && (
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-300 mb-1">
+                  Stop
+                </label>
+                <div className="relative">
+                  <DollarSignIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    ref={triggerPriceInputRef}
+                    type="text"
+                    defaultValue={currentTriggerPrice}
+                    onBlur={(e) => {
+                      const inputValue = e.target.value;
+                      if (inputValue && !isNaN(parseFloat(inputValue))) {
+                        setCurrentTriggerPrice(inputValue);
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg pl-8 pr-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Price Input */}
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-300 mb-1">Price (USD)</label>
+              <label className="block text-xs font-medium text-gray-300 mb-1">Limit</label>
               <div className="relative">
                 <DollarSignIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -460,31 +485,6 @@ export function TradingModal({
                 />
               </div>
             </div>
-
-            {/* Trigger Price Input (for Stop orders) */}
-            {currentOrderExecutionType === 'stop-limit' && (
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-300 mb-1">
-                  Trigger Price (USD)
-                </label>
-                <div className="relative">
-                  <DollarSignIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    ref={triggerPriceInputRef}
-                    type="text"
-                    defaultValue={currentTriggerPrice}
-                    onBlur={(e) => {
-                      const inputValue = e.target.value;
-                      if (inputValue && !isNaN(parseFloat(inputValue))) {
-                        setCurrentTriggerPrice(inputValue);
-                      }
-                    }}
-                    placeholder="0.00"
-                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg pl-8 pr-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
-                  />
-                </div>
-              </div>
-            )}
           </div>
           {currentOrderExecutionType === 'stop-limit' && (
             <small className="text-gray-400 text-xs mt-1 block">
@@ -576,9 +576,9 @@ export function TradingModal({
               : 'bg-red-600 hover:bg-red-700 text-white'
           }`}
         >
-          {currentOrderType === 'buy' && `Buy ${currentSelectedCoin?.symbol || 'BTC'}`}
-          {currentOrderType === 'long' && `Long ${currentSelectedCoin?.symbol || 'BTC'}`}
-          {currentOrderType === 'short' && `Short ${currentSelectedCoin?.symbol || 'BTC'}`}
+          {currentOrderType === 'buy' && `Buy ${(currentSelectedCoin?.symbol || 'BTC').toUpperCase()}`}
+          {currentOrderType === 'long' && `Long ${(currentSelectedCoin?.symbol || 'BTC').toUpperCase()}`}
+          {currentOrderType === 'short' && `Short ${(currentSelectedCoin?.symbol || 'BTC').toUpperCase()}`}
         </button>
       </div>
     </div>
