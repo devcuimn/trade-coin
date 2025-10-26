@@ -66,7 +66,6 @@ class PriceUpdateService {
       
       // Get current prices from Binance
       const prices = await this.getPricesFromBinance(symbols);
-      
       // Update prices in database
       await this.updatePricesInDatabase(prices);
       
@@ -92,7 +91,7 @@ class PriceUpdateService {
       }
       
       // Create a set for faster lookup
-      const symbolSet = new Set(symbols);
+      const symbolSet = new Set(symbols.map(symbol => symbol.toUpperCase()));
       
       // Fetch all prices at once (more reliable)
       const url = `${this.API_BASE_URL}/api/v3/ticker/price`;
@@ -114,11 +113,10 @@ class PriceUpdateService {
           // Only include symbols we care about
           if (symbolSet.has(ticker.symbol) && ticker.symbol.endsWith('USDT')) {
             const baseSymbol = ticker.symbol.replace('USDT', '');
-            priceMap.set(baseSymbol, parseFloat(ticker.price));
+            priceMap.set(baseSymbol.toLowerCase(), parseFloat(ticker.price));
           }
         });
       }
-      
       return priceMap;
       
     } catch (error) {

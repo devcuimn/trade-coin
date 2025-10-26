@@ -109,7 +109,7 @@ export function OrderList({
                             <span>{getCoinIcon(order.coin)}</span>
                           )}
                         </div>
-                        <span className="text-xs font-medium text-white">{order.coin}</span>
+                        <span className="text-xs font-medium text-white">{order.coin.toUpperCase()}</span>
                         <span className={`text-xs font-bold px-1 py-0.5 rounded ${
                           order.type === 'buy' || order.type === 'long'
                             ? 'bg-green-500/20 text-green-400' 

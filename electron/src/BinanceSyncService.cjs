@@ -57,12 +57,8 @@ class BinanceSyncService {
       const symbols = await this.getExchangeInfo();
       console.log(`Found ${symbols.length} symbols from Binance`);
 
-      // Step 2: Get current prices
-      const prices = await this.getAllPrices();
-      console.log(`Found ${prices.length} price data from Binance`);
-
       // Step 3: Combine data and save to database
-      await this.saveCoinsToDatabase(symbols, prices);
+      await this.saveCoinsToDatabase(symbols);
       
       console.log('Coin sync completed successfully at:', new Date().toISOString());
     } catch (error) {
@@ -112,13 +108,9 @@ class BinanceSyncService {
   }
 
   // Save coins data to database
-  async saveCoinsToDatabase(symbols, prices) {
+  async saveCoinsToDatabase(symbols) {
     try {
-      // Create price lookup map
-      const priceMap = new Map();
-      prices.forEach(ticker => {
-        priceMap.set(ticker.symbol, parseFloat(ticker.price));
-      });
+      
 
       // Process symbols and prepare data for database
       // Get CMC coins to map icons
@@ -132,22 +124,25 @@ class BinanceSyncService {
 
       // Create a map of symbol -> icon_url from CMC data
       const iconMap = new Map();
+      const iconMapSymbol = new Map();
+
       cmcCoins.forEach(coin => {
         if (coin.icon_url) {
-          iconMap.set(coin.symbol, coin.icon_url);
+          iconMap.set(coin.slug, coin.icon_url);
+          iconMapSymbol.set(coin.symbol.toLowerCase(), coin.icon_url);
         }
       });
 
       const coinsToSave = await Promise.all(symbols.map(async (symbol) => {
         // Extract base asset (e.g., BTCUSDT -> BTC)
-        const baseAsset = symbol.baseAsset;
-        const quoteAsset = symbol.quoteAsset;
+        const baseAsset = symbol.baseAsset.toLowerCase();
+        const quoteAsset = symbol.quoteAsset.toLowerCase();
         
         // Get price from price map
-        const price = priceMap.get(symbol.symbol) || 0;
+        const price = 0;
 
         // Get icon URL from CMC, or use fallback
-        const iconUrl = iconMap.get(baseAsset) || baseAsset.slice(0, 2);
+        const iconUrl = iconMap.get(baseAsset) || iconMapSymbol.get(baseAsset) || baseAsset.slice(0, 2);
         const name = baseAsset;
         
         return {

@@ -221,7 +221,7 @@ class DatabaseService {
 
       const values = [
         order.id,
-        order.coin,
+        order.coin.toLowerCase(),
         order.coinName,
         order.type,
         order.price,
