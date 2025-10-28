@@ -134,8 +134,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('update-account-balance', type, balance);
   },
 
-  updateApiKeys: (apiKey, apiSecret) => {
-    return ipcRenderer.invoke('update-api-keys', apiKey, apiSecret);
+  updateApiKeys: (apiKey, apiSecret, appKey) => {
+    return ipcRenderer.invoke('update-api-keys', apiKey, apiSecret, appKey);
   }
 });
 

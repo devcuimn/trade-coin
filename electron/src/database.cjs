@@ -7,10 +7,12 @@ const crypto = require('crypto');
 class DatabaseService {
   constructor() {
     this.db = null;
-    // Lưu database vào thư mục electron/data
-    this.dbPath = path.join(__dirname, '../data/trading.db');
+    // Lưu database vào thư mục userData để chạy được trong app.asar
+    // (Không thể ghi vào đường dẫn nằm trong asar)
+    const userDataDir = app.getPath('userData');
+    this.dbPath = path.join(userDataDir, 'trading2.db');
     // Encryption key - trong production nên lưu trong environment variable
-    this.encryptionKey = crypto.createHash('sha256').update('trading-app-secret-key').digest();
+    this.encryptionKey = crypto.createHash('sha256').update('trading-app-dev').digest();
   }
 
   // Encrypt sensitive data
@@ -168,6 +170,14 @@ class DatabaseService {
         )
       `;
 
+      const createAppKeyTable = `
+        CREATE TABLE IF NOT EXISTS app_key (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          appKey TEXT NOT NULL,
+          createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
       this.db.run(createCoinsTable, (err) => {
         if (err) {
           console.error('Error creating coins table:', err);
@@ -211,14 +221,22 @@ class DatabaseService {
                 }
                 console.log('Accounts table created successfully');
                 
-                this.db.run(createApiKeysTable, (err) => {
+              this.db.run(createApiKeysTable, (err) => {
                   if (err) {
                     console.error('Error creating api_keys table:', err);
                     reject(err);
                   } else {
-                    console.log('API keys table created successfully');
+                  console.log('API keys table created successfully');
                     // Initialize with default balances if empty
+                  this.db.run(createAppKeyTable, (err) => {
+                    if (err) {
+                      console.error('Error creating app_key table:', err);
+                      reject(err);
+                      return;
+                    }
+                    console.log('app_key table created successfully');
                     this.initializeAccounts().then(resolve).catch(reject);
+                  });
                   }
                 });
               });
@@ -884,10 +902,18 @@ class DatabaseService {
               decryptedSecret = '';
             }
             
-            resolve({
-              apiKey: row.apiKey,
-              apiSecret: decryptedSecret,
-              updatedAt: row.updatedAt
+            // Also fetch latest appKey from app_key table if present
+            this.db.get('SELECT appKey, createdAt FROM app_key ORDER BY id DESC LIMIT 1', [], (appErr, appRow) => {
+              if (appErr) {
+                console.error('Error fetching app_key:', appErr);
+              }
+              resolve({
+                apiKey: row.apiKey,
+                apiSecret: decryptedSecret,
+                appKey: (appRow && appRow.appKey) || row.appKey || '',
+                appKeyCreatedAt: appRow ? appRow.createdAt : undefined,
+                updatedAt: row.updatedAt
+              });
             });
           } else {
             resolve(null);
@@ -942,6 +968,73 @@ class DatabaseService {
       });
     });
   }
+
+  async upsertAppKey(appKey) {
+    return new Promise((resolve, reject) => {
+      console.log('upsertAppKey called with:', appKey);
+      if (!appKey) {
+        resolve({ changes: 0 });
+        return;
+      }
+      const insertSql = 'INSERT INTO app_key (appKey, createdAt) VALUES (?, CURRENT_TIMESTAMP)';
+      this.db.run(insertSql, [appKey], function(err) {
+        if (err) {
+          console.error('Error inserting app_key:', err);
+          reject(err);
+        } else {
+          console.log('app_key inserted');
+          resolve({ changes: 1 });
+        }
+      });
+    });
+  }
+
+  // Update latest app_key if exists, otherwise insert new
+  async setAppKey(appKey) {
+    return new Promise((resolve, reject) => {
+      if (!appKey) {
+        resolve({ changes: 0 });
+        return;
+      }
+      console.log('setAppKey called with:', appKey);
+      // Try update latest row; if no row updated, insert new
+      const updateSql = 'UPDATE app_key SET appKey = ? WHERE id = (SELECT id FROM app_key ORDER BY id DESC LIMIT 1)';
+      this.db.run(updateSql, [appKey], (updateErr) => {
+        if (updateErr) {
+          console.error('Error updating app_key:', updateErr);
+          reject(updateErr);
+          return;
+        }
+        // Check if any rows were updated using changes()
+        this.db.get('SELECT changes() as cnt', [], (cntErr, cntRow) => {
+          if (cntErr) {
+            console.error('Error checking changes:', cntErr);
+            reject(cntErr);
+            return;
+          }
+          const updateCount = cntRow ? cntRow.cnt : 0;
+          if (updateCount > 0) {
+            console.log('app_key updated, count:', updateCount);
+            resolve({ changes: updateCount });
+            return;
+          }
+          // No rows updated, insert new one
+          const insertSql = 'INSERT INTO app_key (appKey, createdAt) VALUES (?, CURRENT_TIMESTAMP)';
+          this.db.run(insertSql, [appKey], (insertErr) => {
+            if (insertErr) {
+              console.error('Error inserting app_key:', insertErr);
+              reject(insertErr);
+            } else {
+              console.log('app_key inserted');
+              resolve({ changes: 1 });
+            }
+          });
+        });
+      });
+    });
+  }
+
+  
 
   // Add Binance order columns to existing orders table
   addBinanceOrderColumns() {

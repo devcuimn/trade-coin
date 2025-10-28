@@ -1,13 +1,14 @@
 const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const DatabaseService = require('./database.cjs');
 const BinanceSyncService = require('./BinanceSyncService.cjs');
 const CoinMarketCapService = require('./CoinMarketCapService.cjs');
 const PriceUpdateService = require('./PriceUpdateService.cjs');
 const BinanceHelper = require('./BinanceHelper.cjs');
 const BinanceTradingService = require('./BinanceTradingService.cjs');
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 // Keep a global reference of the window object
 let mainWindow;
@@ -15,6 +16,18 @@ let databaseService;
 let binanceSyncService;
 let coinMarketCapService;
 let priceUpdateService;
+let realtimeStarted = false;
+
+function getAppKeyExpiryTs(appKey) {
+  try {
+    if (!appKey) return 0;
+    const b36 = appKey.replace(/^devcui-?/, '');
+    const ts = parseInt(b36, 36);
+    return Number.isFinite(ts) ? ts : 0;
+  } catch (_) {
+    return 0;
+  }
+}
 let binanceHelper;
 let binanceTradingService;
 
@@ -29,7 +42,9 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      preload: path.join(__dirname, 'preload.cjs')
+      preload: path.join(__dirname, 'preload.cjs'),
+      // Allow loading module scripts and assets over file:// without CORS issues
+      webSecurity: false
     },
     icon: path.join(__dirname, '../assets/icon.png'), // Use icon.png as app icon
     titleBarStyle: 'default',
@@ -39,14 +54,66 @@ function createWindow() {
 
   // Load the app
   if (isDev) {
-    // In development, load from Vite dev server
     mainWindow.loadURL('http://localhost:5173');
-    // Open DevTools in development
-    // mainWindow.webContents.openDevTools();
   } else {
-    // In production, load from built files
-    mainWindow.loadFile(path.join(__dirname, '../frontend/dist/index.html'));
+    // Serve dist over a tiny local HTTP server to avoid file:// CORS
+    const appPath = app.getAppPath();
+    const unpackRoot = appPath.endsWith('.asar') ? path.dirname(appPath) : appPath;
+    const candidateDirs = [
+      // Inside asar
+      path.join(appPath, 'frontend/dist'),
+      // Next to asar (unpacked)
+      path.join(unpackRoot, 'frontend/dist'),
+      // Standard dev tree
+      path.join(__dirname, '../frontend/dist'),
+      path.join(__dirname, '../../frontend/dist'),
+      // Under resources
+      path.join(process.resourcesPath || '', 'app/frontend/dist'),
+      path.join(process.resourcesPath || '', 'frontend/dist')
+    ].filter(Boolean);
+    const distDir = candidateDirs.find(p => fs.existsSync(path.join(p, 'index.html'))) || candidateDirs[0];
+    if (!fs.existsSync(path.join(distDir, 'index.html'))) {
+      console.error('Frontend dist not found at any candidate path:', candidateDirs);
+    }
+
+    const mime = {
+      '.html': 'text/html; charset=utf-8',
+      '.js': 'text/javascript; charset=utf-8',
+      '.css': 'text/css; charset=utf-8',
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.ico': 'image/x-icon',
+      '.json': 'application/json; charset=utf-8'
+    };
+
+    const server = http.createServer((req, res) => {
+      const urlPath = decodeURI((req.url || '/').split('?')[0]);
+      const safePath = urlPath === '/' ? '/index.html' : urlPath;
+      const filePath = path.join(distDir, safePath);
+      const ext = path.extname(filePath).toLowerCase();
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          console.warn('Static 404:', safePath, 'from', distDir);
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not found' + filePath + ' from ' + distDir);
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': mime[ext] || 'application/octet-stream' });
+        res.end(data);
+      });
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      const url = `http://127.0.0.1:${port}/index.html`;
+      console.log('Serving frontend from', distDir, 'at', url);
+      mainWindow.loadURL(url);
+    });
   }
+  
 
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
@@ -62,6 +129,16 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Debug load failures and try fallback
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    console.error('Failed to load UI:', { errorCode, errorDescription, validatedURL, isMainFrame });
+    if (!isDev) {
+      const fallback = path.resolve(__dirname, '../frontend/dist/index.html');
+      console.log('Retry loading from', fallback);
+      mainWindow.loadURL(`file://${fallback}`);
+    }
   });
 }
 
@@ -231,6 +308,7 @@ ipcMain.handle('manual-sync-coins', async () => {
   try {
     if (binanceSyncService) {
       await binanceSyncService.manualSync();
+      await binanceSyncService.syncFuturesCoins();
       return { success: true, message: 'Manual sync completed' };
     } else {
       return { success: false, error: 'BinanceSyncService not initialized' };
@@ -300,10 +378,24 @@ ipcMain.handle('update-account-balance', async (event, type, balance) => {
   }
 });
 
-ipcMain.handle('update-api-keys', async (event, apiKey, apiSecret) => {
+ipcMain.handle('update-api-keys', async (event, apiKey, apiSecret, appKey) => {
   try {
-    // Save API keys to database
-    const result = await databaseService.updateApiKeys(apiKey, apiSecret);
+    // Save API keys to database (update or insert)
+    let result = null;
+    if (apiKey && apiSecret) {
+      result = await databaseService.updateApiKeys(apiKey, apiSecret);
+    }
+    // Use update-or-insert behavior for app_key
+    if (appKey) {
+      try { await databaseService.setAppKey(appKey); } catch (e) { console.error('setAppKey error:', e); }
+    }
+    // If appKey provided and expired, short-circuit and don't start realtime
+    if (appKey) {
+      const expiryTs = getAppKeyExpiryTs(appKey);
+      if (expiryTs && expiryTs < Date.now()) {
+        return { success: true, data: { ...result, balances: { spot: 0, futures: 0 }, appKeyExpired: true } };
+      }
+    }
     
     let balances = { spot: 0, futures: 0 };
     
@@ -316,13 +408,18 @@ ipcMain.handle('update-api-keys', async (event, apiKey, apiSecret) => {
       // Continue even if balance fetch fails
     }
     
-    return { 
-      success: true, 
-      data: {
-        ...result,
-        balances: balances
+    // Start realtime services if not already started
+    if (!realtimeStarted) {
+      if (!priceUpdateService) {
+        priceUpdateService = new PriceUpdateService(mainWindow, databaseService, binanceTradingService);
       }
-    };
+      priceUpdateService.start();
+      binanceSyncService.startBalanceUpdates();
+      realtimeStarted = true;
+      console.log('Realtime services started after API keys update');
+    }
+
+    return { success: true, data: { ...result, balances } };
   } catch (error) {
     console.error('Error updating API keys:', error);
     return { success: false, error: error.message };
@@ -396,15 +493,26 @@ app.whenReady().then(async () => {
     binanceTradingService.setFuturesService(binanceFuturesService);
     console.log('BinanceTradingService initialized');
     
-    // Initialize Price Update Service with reference to trading service
-    priceUpdateService = new PriceUpdateService(mainWindow, databaseService, binanceTradingService);
-    priceUpdateService.start();
-    console.log('PriceUpdateService started - updating prices every 2 seconds');
-    
-    // Start balance updates
-    binanceSyncService.mainWindow = mainWindow;
-    binanceSyncService.startBalanceUpdates();
-    console.log('Balance updates started - every 5 seconds');
+    // Only check appKey to decide whether to start realtime services
+    const info = await databaseService.getApiKeys();
+    console.log('info', info);
+    const expiryTs = info && info.appKey ? getAppKeyExpiryTs(info.appKey) : 0;
+    const isAppKeyExpired = expiryTs && expiryTs < Date.now();
+    if (isAppKeyExpired) {
+      console.log('AppKey expired. Skipping realtime services start.');
+    }
+    if (!isAppKeyExpired) {
+      priceUpdateService = new PriceUpdateService(mainWindow, databaseService, binanceTradingService);
+      priceUpdateService.start();
+      console.log('PriceUpdateService started - updating prices every 2 seconds');
+
+      binanceSyncService.mainWindow = mainWindow;
+      binanceSyncService.startBalanceUpdates();
+      console.log('Balance updates started - every 5 seconds');
+      realtimeStarted = true;
+    } else {
+      console.log('AppKey expired. Realtime services will start after a valid appKey is saved.');
+    }
     console.log('BinanceTradingService will use prices from PriceUpdateService');
   }
 

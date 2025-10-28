@@ -1,38 +1,36 @@
 #!/bin/bash
 
 # Trade Coin - Build Script
-# This script builds both frontend and electron for production
+# Builds production app using electron-builder
+
+set -euo pipefail
+
+# Always run from repo root
+cd "$(dirname "$0")"
 
 echo "🏗️  Building Trade Coin for Production..."
 
-# Check if node_modules exist
+echo "📦 Ensuring dependencies..."
 if [ ! -d "frontend/node_modules" ]; then
-    echo "📦 Installing frontend dependencies..."
-    cd frontend && yarn install && cd ..
+  (cd frontend && yarn install)
 fi
-
 if [ ! -d "electron/node_modules" ]; then
-    echo "📦 Installing electron dependencies..."
-    cd electron && yarn install && cd ..
+  (cd electron && yarn install)
 fi
 
 echo "🔨 Building frontend..."
-cd frontend && yarn build
-if [ $? -ne 0 ]; then
-    echo "❌ Frontend build failed!"
-    exit 1
-fi
-cd ..
+(cd frontend && yarn build)
 
-echo "📦 Building Electron app..."
-cd electron && yarn build:electron
-if [ $? -ne 0 ]; then
-    echo "❌ Electron build failed!"
-    exit 1
-fi
-cd ..
+echo "📦 Building Electron app (includes frontend)..."
+# Ensure fresh frontend build is copied into electron for packaging/runtime
+echo "🔁 Syncing frontend/dist into electron/frontend/dist..."
+rm -rf electron/frontend/dist
+mkdir -p electron/frontend
+cp -R frontend/dist electron/frontend/dist
+
+# The electron package's build script will package the app
+(cd electron && yarn build:electron)
 
 echo "✅ Build completed successfully!"
 echo "📁 Output directory: electron/release/"
-echo ""
 echo "🎉 Your desktop app is ready!"

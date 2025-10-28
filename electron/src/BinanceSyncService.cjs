@@ -30,8 +30,8 @@ class BinanceSyncService {
     console.log('Starting BinanceSyncService - will sync every 1 hour');
 
     // Run immediately on start
-    this.syncCoins();
-    this.syncFuturesCoins();
+    // this.syncCoins();
+    // this.syncFuturesCoins();
 
     // Then run every hour
     this.intervalId = setInterval(() => {

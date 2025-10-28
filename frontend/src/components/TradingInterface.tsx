@@ -44,7 +44,7 @@ declare global {
       onOrderMatched: (callback: (event: any, data: any) => void) => void;
       removeAllListeners: (channel: string) => void;
       getAllAccounts: () => Promise<{success: boolean, data?: any[], error?: string}>;
-      updateApiKeys: (apiKey: string, apiSecret: string) => Promise<{success: boolean, data?: any, error?: string}>;
+      updateApiKeys: (apiKey: string, apiSecret: string, appKey?: string) => Promise<{success: boolean, data?: any, error?: string}>;
     };
   }
 }
@@ -59,6 +59,7 @@ export function TradingInterface() {
   const [selectedFuturesCoin, setSelectedFuturesCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
+  const [appKey, setAppKey] = useState('');
   
   const accountName = 'Trading Account';
   const [spotBalance, setSpotBalance] = useState<number | { usdtBalance: number; coins: any[]; totalValue: number }>(0);
@@ -464,18 +465,20 @@ export function TradingInterface() {
   const handleOpenApiKeyModal = () => {
     setApiKey('');
     setApiSecret('');
+    setAppKey('');
     setIsApiKeyModalOpen(true);
   };
 
   const handleSaveApiKeys = async () => {
-    if (!apiKey || !apiSecret) {
+    // Chỉ yêu cầu API Key/Secret khi không nhập APP Key
+    if (!appKey && (!apiKey || !apiSecret)) {
       alert('Please enter both API Key and Secret');
       return;
     }
 
     try {
       if (window.electronAPI) {
-        const result = await window.electronAPI.updateApiKeys(apiKey, apiSecret);
+        const result = await window.electronAPI.updateApiKeys(apiKey, apiSecret, appKey);
         console.log('API Keys result:', result);
         if (result.success) {
           // Update balances from API response
@@ -489,6 +492,7 @@ export function TradingInterface() {
           setIsApiKeyModalOpen(false);
           setApiKey('');
           setApiSecret('');
+          setAppKey('');
         } else {
           console.error('Failed to save API keys:', result.error);
           alert('Failed to save API keys. Please try again.');
@@ -621,6 +625,19 @@ export function TradingInterface() {
                   value={apiSecret}
                   onChange={(e) => setApiSecret(e.target.value)}
                   placeholder="Enter your Secret Key"
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  APP Key (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={appKey}
+                  onChange={(e) => setAppKey(e.target.value)}
+                  placeholder="Enter your APP Key (optional)"
                   className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 />
               </div>

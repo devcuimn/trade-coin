@@ -28,24 +28,12 @@
     "appId": "com.tradecoin.app",
     "productName": "Trade Coin",
     "icon": "../assets/icon.png",
-    "title": "Trade Coin",
-    "description": "A cryptocurrency trading desktop application",
-    "version": "0.0.1",
-    "author": "Trade Coin",
     "copyright": "Copyright 2025 Trade Coin",
-    "homepage": "https://tradecoin.com",
-    "keywords": [
-      "cryptocurrency",
-      "trading",
-      "desktop",
-      "app"
-    ],
-    "license": "MIT",
     "directories": {
       "output": "release"
     },
     "files": [
-      "../frontend/dist/**/*",
+      "frontend/dist/**/*",
       "src/**/*",
       "node_modules/**/*"
     ],
