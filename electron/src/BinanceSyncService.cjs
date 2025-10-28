@@ -14,6 +14,7 @@ class BinanceSyncService {
     this.SYNC_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
     this.BALANCE_UPDATE_INTERVAL = 5 * 1000; // 5 seconds in milliseconds
     this.API_BASE_URL = 'https://api.binance.com';
+    this.FUTURES_API_BASE_URL = 'https://fapi.binance.com';
     
     console.log('BinanceSyncService initialized');
   }
@@ -30,10 +31,12 @@ class BinanceSyncService {
 
     // Run immediately on start
     this.syncCoins();
+    this.syncFuturesCoins();
 
     // Then run every hour
     this.intervalId = setInterval(() => {
       this.syncCoins();
+      this.syncFuturesCoins();
     }, this.SYNC_INTERVAL);
   }
 
@@ -70,6 +73,22 @@ class BinanceSyncService {
     }
   }
 
+  // Sync futures coins
+  async syncFuturesCoins() {
+    try {
+      console.log('Starting futures coins sync at:', new Date().toISOString());
+      
+      const symbols = await this.getFuturesExchangeInfo();
+      console.log(`Found ${symbols.length} futures symbols from Binance`);
+      
+      await this.saveFuturesCoinsToDatabase(symbols);
+      
+      console.log('Futures coins sync completed successfully at:', new Date().toISOString());
+    } catch (error) {
+      console.error('Error during futures coins sync:', error);
+    }
+  }
+
   // Get exchange info from Binance
   async getExchangeInfo() {
     try {
@@ -90,6 +109,30 @@ class BinanceSyncService {
       return activeSymbols;
     } catch (error) {
       console.error('Error getting exchange info:', error);
+      return [];
+    }
+  }
+
+  // Get futures exchange info from Binance
+  async getFuturesExchangeInfo() {
+    try {
+      const response = await fetch(`${this.FUTURES_API_BASE_URL}/fapi/v1/exchangeInfo`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Filter only active futures trading symbols
+      const activeSymbols = data.symbols.filter(symbol => 
+        symbol.status === 'TRADING' && 
+        symbol.contractType === 'PERPETUAL'
+      );
+
+      return activeSymbols;
+    } catch (error) {
+      console.error('Error getting futures exchange info:', error);
       return [];
     }
   }
@@ -187,6 +230,84 @@ class BinanceSyncService {
       }
     } catch (error) {
       console.error('Error saving coins to database:', error);
+    }
+  }
+
+  // Save futures coins data to database
+  async saveFuturesCoinsToDatabase(symbols) {
+    try {
+      // Process symbols and prepare data for database
+      // Get CMC coins to map icons
+      let cmcCoins = [];
+      try {
+        cmcCoins = await this.databaseService.getAllCoinsFromCMC();
+        console.log(`Found ${cmcCoins.length} CMC coins for icon mapping`);
+      } catch (error) {
+        console.log('No CMC coins found, will use fallback icons');
+      }
+
+      // Create a map of symbol -> icon_url from CMC data
+      const iconMap = new Map();
+      const iconMapSymbol = new Map();
+
+      cmcCoins.forEach(coin => {
+        if (coin.icon_url) {
+          iconMap.set(coin.slug, coin.icon_url);
+          iconMapSymbol.set(coin.symbol.toLowerCase(), coin.icon_url);
+        }
+      });
+
+      const coinsToSave = await Promise.all(symbols.map(async (symbol) => {
+        // Extract base asset (e.g., BTCUSDT -> BTC)
+        const baseAsset = symbol.baseAsset.toLowerCase();
+        const quoteAsset = symbol.quoteAsset.toLowerCase();
+        
+        // Get price from price map
+        const price = 0;
+
+        // Get icon URL from CMC, or use fallback
+        const iconUrl = iconMap.get(baseAsset) || iconMapSymbol.get(baseAsset) || baseAsset.slice(0, 2);
+        const name = baseAsset;
+        
+        return {
+          symbol: baseAsset,
+          name: name,
+          price: price,
+          icon: iconUrl,
+          quoteAsset: quoteAsset,
+          status: symbol.status,
+          baseAssetPrecision: symbol.baseAssetPrecision,
+          quotePrecision: symbol.quotePrecision,
+          contractType: symbol.contractType,
+          underlyingType: symbol.underlyingType,
+          underlyingSubType: symbol.underlyingSubType
+        };
+      }));
+
+      // Remove duplicates (same base asset with different quote assets)
+      const uniqueCoins = this.removeDuplicateCoins(coinsToSave);
+
+      // Check existing coins and save only new ones
+      const existingFcoins = await this.databaseService.getAllFcoins();
+      const existingSymbols = new Set(existingFcoins.map(coin => coin.symbol));
+      
+      const newCoins = uniqueCoins.filter(coin => !existingSymbols.has(coin.symbol));
+      
+      if (newCoins.length > 0) {
+        for (const coin of newCoins) {
+          try {
+            await this.databaseService.saveFcoin(coin);
+            console.log(`Saved new futures coin: ${coin.symbol} - ${coin.name}`);
+          } catch (error) {
+            console.error(`Error saving futures coin ${coin.symbol}:`, error);
+          }
+        }
+        console.log(`Saved ${newCoins.length} new futures coins to database`);
+      } else {
+        console.log('No new futures coins to save - all coins already exist');
+      }
+    } catch (error) {
+      console.error('Error saving futures coins to database:', error);
     }
   }
 

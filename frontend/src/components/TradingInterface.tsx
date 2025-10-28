@@ -18,6 +18,7 @@ interface Order {
   mode: 'spot' | 'futures';
   orderType?: 'market' | 'limit' | 'stop-limit' | 'stop-loss';
   triggerPrice?: number;
+  executedPrice?: number;
 }
 
 declare global {
@@ -31,13 +32,16 @@ declare global {
       clearMatchedOrders: () => Promise<{success: boolean, data?: any, error?: string}>;
       clearAllOrders: () => Promise<{success: boolean, data?: any, error?: string}>;
       getAllCoins: () => Promise<{success: boolean, data?: {symbol: string, name: string, price: number, icon: string}[], error?: string}>;
+      getAllFcoins: () => Promise<{success: boolean, data?: {symbol: string, name: string, price: number, icon: string}[], error?: string}>;
       saveCoin: (coin: {symbol: string, name: string, price: number, icon: string}) => Promise<{success: boolean, data?: any, error?: string}>;
       updateCoinPrice: (symbol: string, price: number) => Promise<{success: boolean, data?: any, error?: string}>;
       updateAllCoinPrices: (pricesData: Record<string, number>) => Promise<{success: boolean, data?: any, error?: string}>;
       manualSyncCoins: () => Promise<{success: boolean, message?: string, error?: string}>;
+      manualSyncFuturesCoins: () => Promise<{success: boolean, message?: string, error?: string}>;
       getSyncStatus: () => Promise<{success: boolean, data?: {isRunning: boolean, nextSync: Date | null}, error?: string}>;
       onPriceUpdate: (callback: (event: any, prices: Record<string, number>) => void) => void;
       onBalanceUpdate: (callback: (event: any, balances: {spot: number, futures: number}) => void) => void;
+      onOrderMatched: (callback: (event: any, data: any) => void) => void;
       removeAllListeners: (channel: string) => void;
       getAllAccounts: () => Promise<{success: boolean, data?: any[], error?: string}>;
       updateApiKeys: (apiKey: string, apiSecret: string) => Promise<{success: boolean, data?: any, error?: string}>;
@@ -47,10 +51,12 @@ declare global {
 export function TradingInterface() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [coins, setCoins] = useState<{symbol: string, name: string, price: number, icon: string, priceChange?: 'up' | 'down'}[]>([]);
+  const [fcoins, setFcoins] = useState<{symbol: string, name: string, price: number, icon: string, priceChange?: 'up' | 'down'}[]>([]);
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [isFuturesModalOpen, setIsFuturesModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
+  const [selectedFuturesCoin, setSelectedFuturesCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
   
@@ -63,14 +69,27 @@ export function TradingInterface() {
     const loadCoins = async () => {
       try {
         if (window.electronAPI) {
-          const result = await window.electronAPI.getAllCoins();
-          if (result.success && result.data) {
-            setCoins(result.data);
-            if (result.data.length > 0) {
-              setSelectedCoin(result.data[0]);
+          // Load spot coins
+          const coinsResult = await window.electronAPI.getAllCoins();
+          if (coinsResult.success && coinsResult.data) {
+            setCoins(coinsResult.data);
+            if (coinsResult.data.length > 0) {
+              setSelectedCoin(coinsResult.data[0]);
             }
           } else {
-            console.error('Failed to load coins:', result.error);
+            console.error('Failed to load coins:', coinsResult.error);
+          }
+          
+          // Load futures coins
+          const fcoinsResult = await window.electronAPI.getAllFcoins();
+          if (fcoinsResult.success && fcoinsResult.data) {
+            setFcoins(fcoinsResult.data);
+            console.log('Loaded fcoins:', fcoinsResult.data.length);
+            if (fcoinsResult.data.length > 0) {
+              setSelectedFuturesCoin(fcoinsResult.data[0]);
+            }
+          } else {
+            console.error('Failed to load fcoins:', fcoinsResult.error);
           }
         }
       } catch (error) {
@@ -81,10 +100,17 @@ export function TradingInterface() {
   }, []);
 
   // Listen for real-time price updates
+  // Note: prices object contains combined prices from both spot and futures APIs
+  // Both coins (spot) and fcoins (futures) are updated from the same price data
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onPriceUpdate) {
-      const handlePriceUpdate = (event: any, prices: Record<string, number>) => { // prices is an object, not a map 
-        // Update coin prices in state with price change indicator
+      const handlePriceUpdate = (event: any, prices: Record<string, number>) => { 
+        // Don't update prices if any modal is open
+        if (isSpotModalOpen || isFuturesModalOpen) {
+          return;
+        }
+        
+        // Update spot coin prices (coins array)
         setCoins(prevCoins => 
           prevCoins.map(coin => {
             const newPrice = prices[coin.symbol];
@@ -97,24 +123,29 @@ export function TradingInterface() {
               } else if (newPrice < coin.price) {
                 priceChange = 'down'; // Giá giảm = màu đỏ
               }
-              // If price is same, keep previous color (don't change priceChange)
-              
-              // Reset color after 2 seconds
-              // if (priceChange !== coin.priceChange && priceChange !== 'same') {
-              //   setTimeout(() => {
-              //     setCoins(prevCoins => 
-              //       prevCoins.map(c => 
-              //         c.symbol === coin.symbol 
-              //           ? { ...c, priceChange: 'same' as const }
-              //           : c
-              //       )
-              //     );
-              //   }, 2000);
-              // }
               
               return { ...coin, price: newPrice, priceChange };
             }
             return coin;
+          })
+        );
+        
+        // Update futures coin prices (fcoins array)
+        setFcoins(prevFcoins =>
+          prevFcoins.map(fcoin => {
+            const newPrice = prices[fcoin.symbol];
+            if (newPrice !== undefined) {
+              let priceChange = fcoin.priceChange;
+              
+              if (newPrice > fcoin.price) {
+                priceChange = 'up';
+              } else if (newPrice < fcoin.price) {
+                priceChange = 'down';
+              }
+              
+              return { ...fcoin, price: newPrice, priceChange };
+            }
+            return fcoin;
           })
         );
       };
@@ -127,7 +158,27 @@ export function TradingInterface() {
         window.electronAPI.removeAllListeners('price-update');
       };
     }
-  }, []);
+  }, [isSpotModalOpen, isFuturesModalOpen]);
+
+  // Update selectedFuturesCoin when fcoins change (only when modal is closed)
+  useEffect(() => {
+    if (!isFuturesModalOpen && selectedFuturesCoin) {
+      const updatedCoin = fcoins.find(c => c.symbol === selectedFuturesCoin.symbol);
+      if (updatedCoin && updatedCoin.price !== selectedFuturesCoin.price) {
+        setSelectedFuturesCoin(updatedCoin);
+      }
+    }
+  }, [fcoins, selectedFuturesCoin, isFuturesModalOpen]);
+
+  // Update selectedCoin when modal closes
+  useEffect(() => {
+    if (!isSpotModalOpen && selectedCoin) {
+      const updatedCoin = coins.find(c => c.symbol === selectedCoin.symbol);
+      if (updatedCoin && updatedCoin.price !== selectedCoin.price) {
+        setSelectedCoin(updatedCoin);
+      }
+    }
+  }, [coins, selectedCoin, isSpotModalOpen]);
 
   // Listen for real-time balance updates
   useEffect(() => {
@@ -144,6 +195,40 @@ export function TradingInterface() {
       // Cleanup function
       return () => {
         window.electronAPI.removeAllListeners('balance-update');
+      };
+    }
+  }, []);
+
+  // Listen for order matched events
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onOrderMatched) {
+      const handleOrderMatched = (event: any, data: any) => {
+        console.log('Order matched event received:', data);
+        
+        // Reload orders to get updated status
+        const reloadOrders = async () => {
+          try {
+            if (window.electronAPI) {
+              const result = await window.electronAPI.getAllOrders();
+              if (result.success && result.data) {
+                setOrders(result.data);
+                console.log('Orders updated after match');
+              }
+            }
+          } catch (error) {
+            console.error('Error reloading orders:', error);
+          }
+        };
+        
+        reloadOrders();
+      };
+
+      // Register listener
+      window.electronAPI.onOrderMatched(handleOrderMatched);
+      
+      // Cleanup function
+      return () => {
+        window.electronAPI.removeAllListeners('order-matched');
       };
     }
   }, []);
@@ -211,17 +296,42 @@ export function TradingInterface() {
   };
 
   // Get coin icon
-  const getCoinIcon = (coinSymbol: string) => {
+  const getCoinIcon = (coinSymbol: string, mode?: 'spot' | 'futures') => {
+    if (mode === 'futures') {
+      const coin = fcoins.find(c => c.symbol === coinSymbol);
+      return coin?.icon || coinSymbol.slice(0, 2);
+    }
     const coin = coins.find(c => c.symbol === coinSymbol);
     return coin?.icon || coinSymbol.slice(0, 2);
   };
 
-  const getCurrentPrice = (coinSymbol: string) => {
-    const coin = coins.find(c => c.symbol === coinSymbol);
-    return coin ? coin.price : 0;
+  const getCurrentPrice = (coinSymbol: string, mode?: 'spot' | 'futures') => {
+    // Check both spot and futures coins
+    const spotCoin = coins.find(c => c.symbol === coinSymbol);
+    const futuresCoin = fcoins.find(c => c.symbol === coinSymbol);
+    
+    // If mode is specified, use that specific source
+    if (mode === 'futures') {
+      return futuresCoin ? futuresCoin.price : (spotCoin ? spotCoin.price : 0);
+    } else if (mode === 'spot') {
+      return spotCoin ? spotCoin.price : 0;
+    }
+    
+    // Otherwise, prefer futures if available, else spot
+    return futuresCoin ? futuresCoin.price : (spotCoin ? spotCoin.price : 0);
   };
 
-  const getPriceChangeColor = (coinSymbol: string) => {
+  const getPriceChangeColor = (coinSymbol: string, mode?: 'spot' | 'futures') => {
+    if (mode === 'futures') {
+      const coin = fcoins.find(c => c.symbol === coinSymbol);
+      if (coin?.priceChange === 'up') {
+        return '!text-green-500 font-bold';
+      } else if (coin?.priceChange === 'down') {
+        return '!text-red-500 font-bold';
+      }
+      return 'text-white';
+    }
+    
     const coin = coins.find(c => c.symbol === coinSymbol);
     if (coin?.priceChange === 'up') {
       return '!text-green-500 font-bold'; // Giá tăng = xanh đậm + bold
@@ -232,8 +342,15 @@ export function TradingInterface() {
   };
 
   const calculatePnL = (order: Order) => {
-    const currentPrice = getCurrentPrice(order.coin);
-    const purchasePrice = order.price;
+    // Only calculate P&L for matched orders
+    if (order.status !== 'matched') {
+      return 0;
+    }
+    
+    // Use order.mode to get the correct price source
+    const currentPrice = getCurrentPrice(order.coin, order.mode);
+    // Use executedPrice if available, otherwise fallback to order.price
+    const purchasePrice = order.executedPrice || order.price;
     const amount = order.amount;
     
     if (order.type === 'buy' || order.type === 'long') {
@@ -392,6 +509,7 @@ export function TradingInterface() {
         futuresBalance={futuresBalance}
         onManualSync={handleManualSync}
         onOpenApiKeyModal={handleOpenApiKeyModal}
+        coins={coins}
       />
       
       <div className="max-w-6xl mx-auto">
@@ -539,6 +657,7 @@ export function TradingInterface() {
         price={selectedCoin?.price.toString() || "0"}
         total=""
         triggerPrice=""
+        availableCoins={coins}
       />
 
       {/* Futures Trading Modal */}
@@ -546,14 +665,15 @@ export function TradingInterface() {
         isOpen={isFuturesModalOpen}
         onClose={() => setIsFuturesModalOpen(false)}
         onOrderPlaced={handleOrderPlaced}
-        selectedCoin={selectedCoin}
+        selectedCoin={selectedFuturesCoin}
         tradingMode="futures"
         orderType="long"
         orderExecutionType="limit"
         leverage="10"
-        price={selectedCoin?.price.toString() || "0"}
+        price={selectedFuturesCoin?.price.toString() || "0"}
         total=""
         triggerPrice=""
+        availableCoins={fcoins}
       />
     </div>
   );

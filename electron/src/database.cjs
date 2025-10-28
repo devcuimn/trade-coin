@@ -93,6 +93,18 @@ class DatabaseService {
         )
       `;
 
+      const createFcoinsTable = `
+        CREATE TABLE IF NOT EXISTS fcoins (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          symbol TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          price REAL NOT NULL,
+          icon TEXT,
+          createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
       const createOrdersTable = `
         CREATE TABLE IF NOT EXISTS orders (
           id TEXT PRIMARY KEY,
@@ -107,7 +119,11 @@ class DatabaseService {
           timestamp TEXT NOT NULL,
           mode TEXT NOT NULL CHECK (mode IN ('spot', 'futures')),
           orderType TEXT CHECK (orderType IN ('market', 'limit', 'stop-limit', 'stop-loss')),
-          triggerPrice REAL
+          triggerPrice REAL,
+          binanceOrderId TEXT,
+          binanceOrderData TEXT,
+          executedPrice REAL,
+          executedAt TEXT
         )
       `;
 
@@ -160,39 +176,51 @@ class DatabaseService {
         }
         console.log('Coins table created successfully');
         
-        this.db.run(createOrdersTable, (err) => {
+        this.db.run(createFcoinsTable, (err) => {
           if (err) {
-            console.error('Error creating orders table:', err);
+            console.error('Error creating fcoins table:', err);
             reject(err);
             return;
           }
-          console.log('Orders table created successfully');
+          console.log('Fcoins table created successfully');
           
-          this.db.run(createAllCoinsTable, (err) => {
+          this.db.run(createOrdersTable, (err) => {
             if (err) {
-              console.error('Error creating all_coins table:', err);
+              console.error('Error creating orders table:', err);
               reject(err);
               return;
             }
-            console.log('All_coins table created successfully');
+            console.log('Orders table created successfully');
             
-            this.db.run(createAccountsTable, (err) => {
+            // Add new columns if they don't exist
+            this.addBinanceOrderColumns();
+            
+            this.db.run(createAllCoinsTable, (err) => {
               if (err) {
-                console.error('Error creating accounts table:', err);
+                console.error('Error creating all_coins table:', err);
                 reject(err);
                 return;
               }
-              console.log('Accounts table created successfully');
+              console.log('All_coins table created successfully');
               
-              this.db.run(createApiKeysTable, (err) => {
+              this.db.run(createAccountsTable, (err) => {
                 if (err) {
-                  console.error('Error creating api_keys table:', err);
+                  console.error('Error creating accounts table:', err);
                   reject(err);
-                } else {
-                  console.log('API keys table created successfully');
-                  // Initialize with default balances if empty
-                  this.initializeAccounts().then(resolve).catch(reject);
+                  return;
                 }
+                console.log('Accounts table created successfully');
+                
+                this.db.run(createApiKeysTable, (err) => {
+                  if (err) {
+                    console.error('Error creating api_keys table:', err);
+                    reject(err);
+                  } else {
+                    console.log('API keys table created successfully');
+                    // Initialize with default balances if empty
+                    this.initializeAccounts().then(resolve).catch(reject);
+                  }
+                });
               });
             });
           });
@@ -280,6 +308,85 @@ class DatabaseService {
     });
   }
 
+  // Fcoins CRUD operations
+  async getAllFcoins() {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM fcoins ORDER BY symbol ASC';
+      
+      this.db.all(sql, [], (err, rows) => {
+        if (err) {
+          console.error('Error fetching fcoins:', err);
+          reject(err);
+        } else {
+          const fcoins = rows.map(row => ({
+            symbol: row.symbol,
+            name: row.name,
+            price: parseFloat(row.price),
+            icon: row.icon || row.symbol.slice(0, 2),
+          }));
+          resolve(fcoins);
+        }
+      });
+    });
+  }
+
+  async saveFcoin(coin) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        INSERT INTO fcoins (symbol, name, price, icon, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `;
+
+      const values = [
+        coin.symbol,
+        coin.name,
+        coin.price,
+        coin.icon || null
+      ];
+
+      this.db.run(sql, values, function(err) {
+        if (err) {
+          console.error('Error saving fcoin:', err);
+          reject(err);
+        } else {
+          console.log(`Fcoin saved: ${coin.symbol}`);
+          resolve({ symbol: coin.symbol, changes: this.changes });
+        }
+      });
+    });
+  }
+
+  async updateFcoinPrice(symbol, price) {
+    return new Promise((resolve, reject) => {
+      const sql = 'UPDATE fcoins SET price = ?, updatedAt = CURRENT_TIMESTAMP WHERE symbol = ?';
+      
+      this.db.run(sql, [price, symbol], function(err) {
+        if (err) {
+          console.error('Error updating fcoin price:', err);
+          reject(err);
+        } else {
+          resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
+  async deleteFcoin(symbol) {
+    return new Promise((resolve, reject) => {
+      const sql = 'DELETE FROM fcoins WHERE symbol = ?';
+      
+      this.db.run(sql, [symbol], function(err) {
+        if (err) {
+          console.error('Error deleting fcoin:', err);
+          reject(err);
+        } else {
+          console.log(`Fcoin deleted: ${symbol}`);
+          resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
   async importCoinsFromJSON(coinsData) {
     return new Promise(async (resolve, reject) => {
       try {
@@ -348,7 +455,8 @@ class DatabaseService {
             amount: parseFloat(row.amount),
             total: parseFloat(row.total),
             leverage: row.leverage ? parseInt(row.leverage) : undefined,
-            triggerPrice: row.triggerPrice ? parseFloat(row.triggerPrice) : undefined
+            triggerPrice: row.triggerPrice ? parseFloat(row.triggerPrice) : undefined,
+            executedPrice: row.executedPrice ? parseFloat(row.executedPrice) : undefined
           }));
           resolve(orders);
         }
@@ -833,6 +941,38 @@ class DatabaseService {
         }
       });
     });
+  }
+
+  // Add Binance order columns to existing orders table
+  addBinanceOrderColumns() {
+    try {
+      // Check if columns exist and add them if not
+      this.db.run('ALTER TABLE orders ADD COLUMN binanceOrderId TEXT', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Error adding binanceOrderId column:', err);
+        }
+      });
+      
+      this.db.run('ALTER TABLE orders ADD COLUMN binanceOrderData TEXT', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Error adding binanceOrderData column:', err);
+        }
+      });
+      
+      this.db.run('ALTER TABLE orders ADD COLUMN executedPrice REAL', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Error adding executedPrice column:', err);
+        }
+      });
+      
+      this.db.run('ALTER TABLE orders ADD COLUMN executedAt TEXT', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Error adding executedAt column:', err);
+        }
+      });
+    } catch (error) {
+      console.error('Error adding Binance order columns:', error);
+    }
   }
 
   async close() {

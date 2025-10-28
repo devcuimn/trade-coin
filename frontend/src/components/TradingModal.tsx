@@ -29,6 +29,7 @@ interface TradingModalProps {
   price: string;
   total: string;
   triggerPrice: string;
+  availableCoins?: {symbol: string, name: string, price: number, icon: string}[];
 }
 
 export function TradingModal({
@@ -42,7 +43,8 @@ export function TradingModal({
   leverage,
   price,
   total,
-  triggerPrice
+  triggerPrice,
+  availableCoins
 }: TradingModalProps) {
   const [coins, setCoins] = useState<{symbol: string, name: string, price: number, icon: string}[]>([]);
   const [coinSearchTerm, setCoinSearchTerm] = useState('');
@@ -75,16 +77,27 @@ export function TradingModal({
 
   // Load coins data
   useEffect(() => {
-    const loadCoins = async () => {
-      if (window.electronAPI) {
-        const result = await window.electronAPI.getAllCoins();
-        if (result.success && result.data) {
-          setCoins(result.data);
-        }
+    if (availableCoins && availableCoins.length > 0) {
+      setCoins(availableCoins);
+      // If no selected coin is set, use the first coin from available coins
+      if (!selectedCoin && availableCoins.length > 0) {
+        setCurrentSelectedCoin(availableCoins[0]);
       }
-    };
-    loadCoins();
-  }, []);
+    } else {
+      const loadCoins = async () => {
+        if (window.electronAPI) {
+          const result = await window.electronAPI.getAllCoins();
+          if (result.success && result.data) {
+            setCoins(result.data);
+            if (!selectedCoin && result.data.length > 0) {
+              setCurrentSelectedCoin(result.data[0]);
+            }
+          }
+        }
+      };
+      loadCoins();
+    }
+  }, [availableCoins, selectedCoin]);
 
   // Filter coins for search
   const { displayedCoins } = useMemo(() => {
@@ -260,6 +273,7 @@ export function TradingModal({
             <input
               ref={coinSearchInputRef}
               type="text"
+              defaultValue={currentSelectedCoin ? `${currentSelectedCoin.symbol.toUpperCase()} - ${currentSelectedCoin.name} ($${currentSelectedCoin.price.toString()})` : ''}
               onChange={(e) => {
                 const value = e.target.value;
                 setCoinSearchTerm(value);

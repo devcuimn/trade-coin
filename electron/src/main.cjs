@@ -5,6 +5,8 @@ const DatabaseService = require('./database.cjs');
 const BinanceSyncService = require('./BinanceSyncService.cjs');
 const CoinMarketCapService = require('./CoinMarketCapService.cjs');
 const PriceUpdateService = require('./PriceUpdateService.cjs');
+const BinanceHelper = require('./BinanceHelper.cjs');
+const BinanceTradingService = require('./BinanceTradingService.cjs');
 const isDev = process.env.NODE_ENV === 'development';
 
 // Keep a global reference of the window object
@@ -13,6 +15,8 @@ let databaseService;
 let binanceSyncService;
 let coinMarketCapService;
 let priceUpdateService;
+let binanceHelper;
+let binanceTradingService;
 
 function createWindow() {
   // Create the browser window
@@ -191,6 +195,37 @@ ipcMain.handle('update-all-coin-prices', async (event, pricesData) => {
   }
 });
 
+// Fcoins IPC handlers
+ipcMain.handle('get-all-fcoins', async () => {
+  try {
+    const fcoins = await databaseService.getAllFcoins();
+    return { success: true, data: fcoins };
+  } catch (error) {
+    console.error('Error fetching fcoins:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-fcoin', async (event, coin) => {
+  try {
+    const result = await databaseService.saveFcoin(coin);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error saving fcoin:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-fcoin-price', async (event, symbol, price) => {
+  try {
+    const result = await databaseService.updateFcoinPrice(symbol, price);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error updating fcoin price:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Binance Sync Service IPC handlers
 ipcMain.handle('manual-sync-coins', async () => {
   try {
@@ -202,6 +237,20 @@ ipcMain.handle('manual-sync-coins', async () => {
     }
   } catch (error) {
     console.error('Error during manual sync:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('manual-sync-futures-coins', async () => {
+  try {
+    if (binanceSyncService) {
+      await binanceSyncService.syncFuturesCoins();
+      return { success: true, message: 'Manual futures sync completed' };
+    } else {
+      return { success: false, error: 'BinanceSyncService not initialized' };
+    }
+  } catch (error) {
+    console.error('Error during manual futures sync:', error);
     return { success: false, error: error.message };
   }
 });
@@ -326,7 +375,29 @@ app.whenReady().then(async () => {
 
   // Initialize Price Update Service after window is created
   if (mainWindow) {
-    priceUpdateService = new PriceUpdateService(mainWindow, databaseService);
+    // Initialize BinanceHelper
+    binanceHelper = new BinanceHelper();
+    console.log('BinanceHelper initialized');
+    
+    // Initialize BinanceSpotBuyService
+    const BinanceSpotBuyService = require('./BinanceSpotBuyService.cjs');
+    const binanceSpotBuyService = new BinanceSpotBuyService(databaseService, mainWindow, binanceHelper);
+    console.log('BinanceSpotBuyService initialized');
+    
+    // Initialize BinanceFuturesService
+    const BinanceFuturesService = require('./BinanceFuturesService.cjs');
+    const binanceFuturesService = new BinanceFuturesService(databaseService, mainWindow, binanceHelper);
+    console.log('BinanceFuturesService initialized');
+    
+    // Initialize BinanceTradingService
+    binanceTradingService = new BinanceTradingService(databaseService, mainWindow);
+    binanceTradingService.setBinanceHelper(binanceHelper);
+    binanceTradingService.setSpotBuyService(binanceSpotBuyService);
+    binanceTradingService.setFuturesService(binanceFuturesService);
+    console.log('BinanceTradingService initialized');
+    
+    // Initialize Price Update Service with reference to trading service
+    priceUpdateService = new PriceUpdateService(mainWindow, databaseService, binanceTradingService);
     priceUpdateService.start();
     console.log('PriceUpdateService started - updating prices every 2 seconds');
     
@@ -334,6 +405,7 @@ app.whenReady().then(async () => {
     binanceSyncService.mainWindow = mainWindow;
     binanceSyncService.startBalanceUpdates();
     console.log('Balance updates started - every 5 seconds');
+    console.log('BinanceTradingService will use prices from PriceUpdateService');
   }
 
   // macOS specific: create window when dock icon is clicked

@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('balance-update', callback);
   },
 
+  // Order matched event listener
+  onOrderMatched: (callback) => {
+    ipcRenderer.on('order-matched', callback);
+  },
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
@@ -90,9 +95,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('update-all-coin-prices', pricesData);
   },
 
+  // Fcoins API
+  getAllFcoins: () => {
+    return ipcRenderer.invoke('get-all-fcoins');
+  },
+
+  saveFcoin: (coin) => {
+    return ipcRenderer.invoke('save-fcoin', coin);
+  },
+
+  updateFcoinPrice: (symbol, price) => {
+    return ipcRenderer.invoke('update-fcoin-price', symbol, price);
+  },
+
   // Binance Sync Service API
   manualSyncCoins: () => {
     return ipcRenderer.invoke('manual-sync-coins');
+  },
+
+  manualSyncFuturesCoins: () => {
+    return ipcRenderer.invoke('manual-sync-futures-coins');
   },
 
   getSyncStatus: () => {
