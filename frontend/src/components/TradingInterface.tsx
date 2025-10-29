@@ -567,9 +567,9 @@ export function TradingInterface() {
     
     return (
     <div className="w-full min-h-screen gradient-bg text-white p-6 animate-fadeInUp">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-8 gap-2">
         {/* Left Side: Trading Header Info */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-2">
           <TradingHeader 
             accountName={accountName}
             spotBalance={spotBalance}
@@ -582,7 +582,7 @@ export function TradingInterface() {
         </div>
 
         {/* Right Side: Order History */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-6">
           {/* Order History with Trading Buttons */}
           <div className="glass-card rounded-2xl p-8 shadow-2xl">
           <div className="flex items-center justify-between mb-4">

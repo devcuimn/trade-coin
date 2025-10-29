@@ -45,9 +45,10 @@ class BinanceFuturesService {
                   binanceOrderResult: orderResult,
                 });
               }
-
+              console.log('Order matched:', orderResult);
               // Send Telegram notification
               if (this.telegramService) {
+                console.log('Sending Telegram notification for order matched');
                 await this.telegramService.notifyOrderMatched(order, orderResult);
               }
             }

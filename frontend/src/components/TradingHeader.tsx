@@ -62,7 +62,7 @@ export function TradingHeader({ accountName, spotBalance, futuresBalance, onManu
 
       {/* Row 2: 2 Wallets (Spot & Futures) */}
       <div className="glass-card rounded-xl p-4 shadow-xl">
-        <div className="flex items-stretch gap-4">
+        <div className="flex items-stretch gap-2">
           <div className="glass rounded-lg px-4 py-3 flex-1">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUpIcon className="w-4 h-4 text-green-400" />
@@ -157,19 +157,24 @@ export function TradingHeader({ accountName, spotBalance, futuresBalance, onManu
       {typeof futuresBalance === 'object' && futuresBalance.positions && futuresBalance.positions.length > 0 && (
         <div className="glass-card rounded-xl p-4 shadow-xl">
           <p className="text-muted text-xs mb-2 font-medium">Open Positions</p>
-          <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+          <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
             {futuresBalance.positions.map((pos, idx) => (
-              <div key={idx} className="text-xs flex justify-between items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-300 font-medium">{pos.symbol.replace('USDT', '')}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded font-medium">
-                    {pos.leverage}x
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded font-medium">
-                    {pos.marginType.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <span className={`font-medium ${pos.unRealizedProfit > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div key={idx} className="text-xs grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
+                {/* Coin */}
+                <span className="text-gray-300 font-medium">{pos.symbol.replace('USDT', '')}</span>
+                
+                {/* X (Leverage) */}
+                <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded font-medium justify-self-center">
+                  {pos.leverage}x
+                </span>
+                
+                {/* I (Margin Type) */}
+                <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded font-medium justify-self-center">
+                  {pos.marginType.charAt(0).toUpperCase()}
+                </span>
+                
+                {/* Price (PnL) */}
+                <span className={`font-medium justify-self-end ${pos.unRealizedProfit > 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {pos.unRealizedProfit > 0 ? '+' : ''}{pos.unRealizedProfit.toFixed(2)}
                 </span>
               </div>

@@ -554,16 +554,13 @@ class BinanceSyncService {
   // Fetch balances when API keys are updated
   async updateAccountBalancesFromBinance(apiKey, apiSecret) {
     try {
-      console.log('Fetching balances from Binance...');
       const balances = await this.fetchAccountBalances(apiKey, apiSecret);
       
       // Update spot balance (use totalValue for database)
       await this.databaseService.updateAccountBalance('spot', balances.spot.totalValue);
-      console.log('Updated spot balance:', balances.spot.totalValue);
       
       // Update futures balance (use totalBalance for database)
       await this.databaseService.updateAccountBalance('futures', balances.futures.totalBalance);
-      console.log('Updated futures balance:', balances.futures.totalBalance);
       
       return balances;
     } catch (error) {
