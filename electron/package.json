@@ -1,6 +1,8 @@
 {
   "name": "trade-coin-electron",
   "version": "0.0.1",
+  "description": "Cryptocurrency Trading Application",
+  "author": "Trade Coin",
   "private": true,
   "main": "src/main.cjs",
   "scripts": {
@@ -11,7 +13,8 @@
     "build:frontend": "cd ../frontend && npm run build",
     "build:electron": "electron-builder",
     "dist": "npm run build",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-rebuild -f -w sqlite3"
   },
   "dependencies": {
     "node-fetch": "^2.7.0",
@@ -22,12 +25,12 @@
     "cross-env": "^10.1.0",
     "electron": "^38.4.0",
     "electron-builder": "^26.0.12",
+    "electron-rebuild": "^3.2.9",
     "wait-on": "^9.0.1"
   },
   "build": {
     "appId": "com.tradecoin.app",
     "productName": "Trade Coin",
-    "icon": "../assets/icon.png",
     "copyright": "Copyright 2025 Trade Coin",
     "directories": {
       "output": "release"
@@ -38,6 +41,7 @@
       "node_modules/**/*"
     ],
     "mac": {
+      "icon": "assets/icon.png",
       "category": "public.app-category.finance",
       "target": [
         {
