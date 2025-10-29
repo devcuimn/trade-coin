@@ -37,7 +37,7 @@ export function OrderList({
   return (
     <div>
       {orders.length > 0 ? (
-        <div className="overflow-x-auto custom-scrollbar" style={{maxHeight: '450px', overflowY: 'auto'}}>
+        <div className="overflow-x-auto custom-scrollbar" style={{maxHeight: '600px', overflowY: 'auto'}}>
           <table className="w-full min-w-max">
             <thead className="sticky top-0 bg-slate-800/95 backdrop-blur-sm">
               <tr className="border-b border-slate-600/30">
