@@ -2,10 +2,11 @@
 // Handles futures limit long and short orders
 
 class BinanceFuturesService {
-  constructor(databaseService, mainWindow = null, binanceHelper = null) {
+  constructor(databaseService, mainWindow = null, binanceHelper = null, telegramService = null) {
     this.databaseService = databaseService;
     this.mainWindow = mainWindow;
     this.binanceHelper = binanceHelper;
+    this.telegramService = telegramService;
     
     console.log('BinanceFuturesService initialized');
   }
@@ -44,6 +45,11 @@ class BinanceFuturesService {
                   binanceOrderResult: orderResult,
                 });
               }
+
+              // Send Telegram notification
+              if (this.telegramService) {
+                await this.telegramService.notifyOrderMatched(order, orderResult);
+              }
             }
           }
         } else if (order.type === 'short') {
@@ -64,6 +70,11 @@ class BinanceFuturesService {
                   price: marketPrice,
                   binanceOrderResult: orderResult,
                 });
+              }
+
+              // Send Telegram notification
+              if (this.telegramService) {
+                await this.telegramService.notifyOrderMatched(order, orderResult);
               }
             }
           }
@@ -101,6 +112,11 @@ class BinanceFuturesService {
                   binanceOrderResult: orderResult,
                 });
               }
+
+              // Send Telegram notification
+              if (this.telegramService) {
+                await this.telegramService.notifyOrderMatched(order, orderResult);
+              }
             }
           }
         } else if (order.type === 'short') {
@@ -126,6 +142,11 @@ class BinanceFuturesService {
                   price: marketPrice,
                   binanceOrderResult: orderResult,
                 });
+              }
+
+              // Send Telegram notification
+              if (this.telegramService) {
+                await this.telegramService.notifyOrderMatched(order, orderResult);
               }
             }
           }

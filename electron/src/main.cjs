@@ -8,6 +8,7 @@ const CoinMarketCapService = require('./CoinMarketCapService.cjs');
 const PriceUpdateService = require('./PriceUpdateService.cjs');
 const BinanceHelper = require('./BinanceHelper.cjs');
 const BinanceTradingService = require('./BinanceTradingService.cjs');
+const TelegramService = require('./TelegramService.cjs');
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 // Keep a global reference of the window object
@@ -16,6 +17,7 @@ let databaseService;
 let binanceSyncService;
 let coinMarketCapService;
 let priceUpdateService;
+let telegramService;
 let realtimeStarted = false;
 
 function getAppKeyExpiryTs(appKey) {
@@ -34,7 +36,7 @@ let binanceTradingService;
 function createWindow() {
   // Create the browser window
   mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 1300,
     height: 800,
     minWidth: 800,
     minHeight: 600,
@@ -49,7 +51,14 @@ function createWindow() {
     icon: path.join(__dirname, '../assets/icon.png'), // Use icon.png as app icon
     titleBarStyle: 'default',
     show: false, // Don't show until ready
-    backgroundColor: '#1f2937' // Match your app's dark theme
+    backgroundColor: '#1f2937', // Match your app's dark theme
+    fullscreenable: false,
+    fullscreen: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    fullscreen: false,
   });
 
   // Load the app
@@ -426,6 +435,27 @@ ipcMain.handle('update-api-keys', async (event, apiKey, apiSecret, appKey) => {
   }
 });
 
+// Telegram Settings IPC handlers
+ipcMain.handle('get-telegram-settings', async () => {
+  try {
+    const result = await databaseService.getTelegramSettings();
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error getting Telegram settings:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-telegram-settings', async (event, botToken, chatId) => {
+  try {
+    const result = await databaseService.updateTelegramSettings(botToken, chatId);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error updating Telegram settings:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // App event handlers
 app.whenReady().then(async () => {
   // Initialize database
@@ -448,6 +478,10 @@ app.whenReady().then(async () => {
     }
     
     console.log('CoinMarketCapService initialized');
+
+    // Initialize Telegram Service
+    telegramService = new TelegramService(databaseService);
+    console.log('TelegramService initialized');
 
     // Initialize Binance Sync Service
     binanceSyncService = new BinanceSyncService(databaseService);
@@ -478,12 +512,12 @@ app.whenReady().then(async () => {
     
     // Initialize BinanceSpotBuyService
     const BinanceSpotBuyService = require('./BinanceSpotBuyService.cjs');
-    const binanceSpotBuyService = new BinanceSpotBuyService(databaseService, mainWindow, binanceHelper);
+    const binanceSpotBuyService = new BinanceSpotBuyService(databaseService, mainWindow, binanceHelper, telegramService);
     console.log('BinanceSpotBuyService initialized');
     
     // Initialize BinanceFuturesService
     const BinanceFuturesService = require('./BinanceFuturesService.cjs');
-    const binanceFuturesService = new BinanceFuturesService(databaseService, mainWindow, binanceHelper);
+    const binanceFuturesService = new BinanceFuturesService(databaseService, mainWindow, binanceHelper, telegramService);
     console.log('BinanceFuturesService initialized');
     
     // Initialize BinanceTradingService

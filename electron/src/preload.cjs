@@ -136,6 +136,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   updateApiKeys: (apiKey, apiSecret, appKey) => {
     return ipcRenderer.invoke('update-api-keys', apiKey, apiSecret, appKey);
+  },
+
+  // Telegram API
+  getTelegramSettings: () => {
+    return ipcRenderer.invoke('get-telegram-settings');
+  },
+
+  updateTelegramSettings: (botToken, chatId) => {
+    return ipcRenderer.invoke('update-telegram-settings', botToken, chatId);
   }
 });
 

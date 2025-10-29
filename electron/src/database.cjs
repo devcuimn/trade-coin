@@ -178,6 +178,15 @@ class DatabaseService {
         )
       `;
 
+      const createTelegramSettingsTable = `
+        CREATE TABLE IF NOT EXISTS telegram_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          botToken TEXT NOT NULL,
+          chatId TEXT NOT NULL,
+          updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
       this.db.run(createCoinsTable, (err) => {
         if (err) {
           console.error('Error creating coins table:', err);
@@ -235,7 +244,16 @@ class DatabaseService {
                       return;
                     }
                     console.log('app_key table created successfully');
-                    this.initializeAccounts().then(resolve).catch(reject);
+                    
+                    this.db.run(createTelegramSettingsTable, (err) => {
+                      if (err) {
+                        console.error('Error creating telegram_settings table:', err);
+                        reject(err);
+                        return;
+                      }
+                      console.log('telegram_settings table created successfully');
+                      this.initializeAccounts().then(resolve).catch(reject);
+                    });
                   });
                   }
                 });
@@ -1030,6 +1048,68 @@ class DatabaseService {
             }
           });
         });
+      });
+    });
+  }
+
+  async getTelegramSettings() {
+    return new Promise((resolve, reject) => {
+      const sql = 'SELECT * FROM telegram_settings ORDER BY id DESC LIMIT 1';
+      this.db.get(sql, [], (err, row) => {
+        if (err) {
+          console.error('Error fetching Telegram settings:', err);
+          reject(err);
+        } else {
+          if (row) {
+            resolve({
+              botToken: row.botToken,
+              chatId: row.chatId,
+              updatedAt: row.updatedAt
+            });
+          } else {
+            resolve(null);
+          }
+        }
+      });
+    });
+  }
+
+  async updateTelegramSettings(botToken, chatId) {
+    return new Promise((resolve, reject) => {
+      // Check if settings exist
+      const checkSql = 'SELECT COUNT(*) as count FROM telegram_settings';
+      this.db.get(checkSql, [], (err, row) => {
+        if (err) {
+          console.error('Error checking Telegram settings:', err);
+          reject(err);
+          return;
+        }
+
+        if (row.count === 0) {
+          // Insert new settings
+          const insertSql = 'INSERT INTO telegram_settings (botToken, chatId) VALUES (?, ?)';
+          this.db.run(insertSql, [botToken, chatId], function(insertErr) {
+            if (insertErr) {
+              console.error('Error inserting Telegram settings:', insertErr);
+              reject(insertErr);
+            } else {
+              console.log('Telegram settings inserted successfully');
+              resolve({ botToken, chatId, changes: this.changes });
+            }
+          });
+        } else {
+          // Update existing settings
+          const updateSql = 'UPDATE telegram_settings SET botToken = ?, chatId = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = (SELECT id FROM telegram_settings ORDER BY id DESC LIMIT 1)';
+          this.db.run(updateSql, [botToken, chatId], function(updateErr) {
+            if (updateErr) {
+              console.error('Error updating Telegram settings:', updateErr);
+              reject(updateErr);
+            } else {
+              console.log('Telegram settings updated successfully');
+              resolve({ botToken, chatId, changes: this.changes });
+            }
+          });
+        }
       });
     });
   }

@@ -45,6 +45,8 @@ declare global {
       removeAllListeners: (channel: string) => void;
       getAllAccounts: () => Promise<{success: boolean, data?: any[], error?: string}>;
       updateApiKeys: (apiKey: string, apiSecret: string, appKey?: string) => Promise<{success: boolean, data?: any, error?: string}>;
+      getTelegramSettings: () => Promise<{success: boolean, data?: {botToken: string, chatId: string}, error?: string}>;
+      updateTelegramSettings: (botToken: string, chatId: string) => Promise<{success: boolean, data?: any, error?: string}>;
     };
   }
 }
@@ -55,11 +57,14 @@ export function TradingInterface() {
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [isFuturesModalOpen, setIsFuturesModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
   const [selectedFuturesCoin, setSelectedFuturesCoin] = useState<{symbol: string, name: string, price: number, icon: string} | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
   const [appKey, setAppKey] = useState('');
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   
   const accountName = 'Trading Account';
   const [spotBalance, setSpotBalance] = useState<number | { usdtBalance: number; coins: any[]; totalValue: number }>(0);
@@ -503,22 +508,83 @@ export function TradingInterface() {
       alert('Error saving API keys. Please try again.');
     }
   };
+
+  // Load Telegram settings on mount
+  useEffect(() => {
+    const loadTelegramSettings = async () => {
+      try {
+        if (window.electronAPI && window.electronAPI.getTelegramSettings) {
+          const result = await window.electronAPI.getTelegramSettings();
+          if (result.success && result.data) {
+            setTelegramBotToken(result.data.botToken || '');
+            setTelegramChatId(result.data.chatId || '');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading Telegram settings:', error);
+      }
+    };
+    loadTelegramSettings();
+  }, []);
+
+  const handleOpenTelegramModal = async () => {
+    try {
+      if (window.electronAPI && window.electronAPI.getTelegramSettings) {
+        const result = await window.electronAPI.getTelegramSettings();
+        if (result.success && result.data) {
+          setTelegramBotToken(result.data.botToken || '');
+          setTelegramChatId(result.data.chatId || '');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading Telegram settings:', error);
+    }
+    setIsTelegramModalOpen(true);
+  };
+
+  const handleSaveTelegramSettings = async () => {
+    if (!telegramBotToken || !telegramChatId) {
+      alert('Please enter both Telegram Bot Token and Chat ID');
+      return;
+    }
+
+    try {
+      if (window.electronAPI && window.electronAPI.updateTelegramSettings) {
+        const result = await window.electronAPI.updateTelegramSettings(telegramBotToken, telegramChatId);
+        if (result.success) {
+          alert('Telegram settings saved successfully!');
+          setIsTelegramModalOpen(false);
+        } else {
+          console.error('Failed to save Telegram settings:', result.error);
+          alert('Failed to save Telegram settings. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving Telegram settings:', error);
+      alert('Error saving Telegram settings. Please try again.');
+    }
+  };
     
     return (
     <div className="w-full min-h-screen gradient-bg text-white p-6 animate-fadeInUp">
-      {/* Header with Account Info */}
-      <TradingHeader 
-        accountName={accountName}
-        spotBalance={spotBalance}
-        futuresBalance={futuresBalance}
-        onManualSync={handleManualSync}
-        onOpenApiKeyModal={handleOpenApiKeyModal}
-        coins={coins}
-      />
-      
-      <div className="max-w-6xl mx-auto">
-        {/* Order History with Trading Buttons */}
-        <div className="glass-card rounded-2xl p-8 shadow-2xl">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Side: Trading Header Info */}
+        <div className="lg:col-span-1">
+          <TradingHeader 
+            accountName={accountName}
+            spotBalance={spotBalance}
+            futuresBalance={futuresBalance}
+            onManualSync={handleManualSync}
+            onOpenApiKeyModal={handleOpenApiKeyModal}
+            onOpenTelegramModal={handleOpenTelegramModal}
+            coins={coins}
+          />
+        </div>
+
+        {/* Right Side: Order History */}
+        <div className="lg:col-span-2">
+          {/* Order History with Trading Buttons */}
+          <div className="glass-card rounded-2xl p-8 shadow-2xl">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="p-1 bg-blue-500/10 rounded">
@@ -533,43 +599,44 @@ export function TradingInterface() {
               <button 
                 onClick={() => setIsSpotModalOpen(true)}
                 className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg shadow-blue-500/25 flex items-center space-x-2"
-                title="Spot Trade"
+                title="Spot"
               >
                 <div className="w-2 h-2 rounded-full bg-blue-200"></div>
                 <TrendingUpIcon className="w-4 h-4" />
-                <span>Spot Trade</span>
+                <span>Spot</span>
               </button>
               <button 
                 onClick={() => setIsFuturesModalOpen(true)}
                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg shadow-purple-500/25 flex items-center space-x-2"
-                title="Futures Trade"
+                title="Futures"
               >
                 <div className="w-2 h-2 rounded-full bg-purple-200"></div>
                 <TrendingUpIcon className="w-4 h-4" />
-                <span>Futures Trade</span>
+                <span>Futures</span>
               </button>
               <button 
                 onClick={handleClearMatchedOrders}
-                className="p-2 bg-orange-500/10 text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 rounded transition-all"
+                className="w-10 h-10 rounded-full bg-gray-200 text-amber-400 shadow-md hover:shadow-lg flex items-center justify-center transition-all hover:-translate-y-0.5"
                 title="Clear Matched Orders"
               >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </button>
               <button 
                 onClick={handleClearAllOrders}
-                className="p-2 bg-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+                className="w-10 h-10 rounded-full bg-gray-200 text-gray-400 shadow-md hover:shadow-lg flex items-center justify-center transition-all hover:-translate-y-0.5"
                 title="Clear All Orders"
               >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
           </div>
+          
+          {/* Divider Line */}
+          <div className="border-b border-slate-600/30 my-4"></div>
           
           {/* Order List Content */}
           <OrderList 
@@ -581,6 +648,7 @@ export function TradingInterface() {
             getCoinIcon={getCoinIcon}
             getPriceChangeColor={getPriceChangeColor}
           />
+          </div>
         </div>
       </div>
 
@@ -651,6 +719,76 @@ export function TradingInterface() {
                 </button>
                 <button
                   onClick={() => setIsApiKeyModalOpen(false)}
+                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Telegram Configuration Modal */}
+      {isTelegramModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">
+                Configure Telegram Notifications
+              </h2>
+              <button
+                onClick={() => setIsTelegramModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-blue-300">
+                  Get your Bot Token from <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">@BotFather</a> and Chat ID from <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline">@userinfobot</a>
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Telegram Bot Token
+                </label>
+                <input
+                  type="text"
+                  value={telegramBotToken}
+                  onChange={(e) => setTelegramBotToken(e.target.value)}
+                  placeholder="Enter your Telegram Bot Token"
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Chat/Group ID
+                </label>
+                <input
+                  type="text"
+                  value={telegramChatId}
+                  onChange={(e) => setTelegramChatId(e.target.value)}
+                  placeholder="Enter your Chat ID or Group ID"
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSaveTelegramSettings}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium transition-all duration-200"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setIsTelegramModalOpen(false)}
                   className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-200"
                 >
                   Cancel

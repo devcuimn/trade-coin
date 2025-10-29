@@ -602,6 +602,11 @@ class BinanceSyncService {
         }
         
         console.log('Balances updated:', balances);
+        // console.log('Spot balance:', balances.spot.totalValue);
+        // console.log('Futures balance:', balances.futures.positions);
+        // for (const position of balances.futures.positions) {
+        //   console.log('Position:', position);
+        // }
       } catch (error) {
         console.error('Error in balance update:', error);
       }

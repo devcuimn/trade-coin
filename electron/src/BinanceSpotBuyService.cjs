@@ -2,10 +2,11 @@
 // Kiểm tra pending spot buy orders và mua khi giá thị trường <= giá order
 
 class BinanceSpotBuyService {
-  constructor(databaseService, mainWindow = null, binanceHelper = null) {
+  constructor(databaseService, mainWindow = null, binanceHelper = null, telegramService = null) {
     this.databaseService = databaseService;
     this.mainWindow = mainWindow;
     this.binanceHelper = binanceHelper;
+    this.telegramService = telegramService;
     
     console.log('BinanceSpotBuyService initialized');
   }
@@ -55,6 +56,11 @@ class BinanceSpotBuyService {
             price: marketPrice,
             binanceOrderResult: orderResult,
           });
+        }
+
+        // Send Telegram notification
+        if (this.telegramService) {
+          await this.telegramService.notifyOrderMatched(order, orderResult);
         }
       }
 
